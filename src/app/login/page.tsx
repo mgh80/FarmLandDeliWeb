@@ -1,19 +1,19 @@
-// src/app/login/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { EyeSlashIcon } from "@heroicons/react/24/outline";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [darkMode] = useState(false);
   const router = useRouter();
 
+  /* ------------ lógica de login sin cambios ------------ */
   const handleLogin = async () => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -24,8 +24,7 @@ export default function LoginPage() {
       setError("Credenciales inválidas");
       return;
     }
-    debugger;
-    console.log(data);
+
     if (data?.user?.email === "delifarmland@gmail.com") {
       router.push("/admin");
     } else {
@@ -33,61 +32,87 @@ export default function LoginPage() {
     }
   };
 
+  /* quitar modo‑oscuro global */
   useEffect(() => {
-    document.body.className = darkMode
-      ? "bg-gray-900 text-white"
-      : "bg-gray-50 text-gray-900";
-  }, [darkMode]);
+    document.body.className = "bg-white text-gray-900";
+  }, []);
 
+  /* --------------------- UI --------------------- */
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 transition-colors">
-      <img
-        src="/logo.png"
-        alt="Logo"
-        className="w-24 mb-4 rounded-full shadow-lg"
-      />
-      <h1 className="text-2xl font-semibold mb-6">
-        Admin Portal Farmland Deli
-      </h1>
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="flex w-full max-w-5xl h-[520px] rounded-2xl shadow-xl overflow-hidden">
+        {/* ---------- LADO IZQUIERDO: FORM ---------- */}
+        <div className="w-full lg:w-1/2 bg-white flex flex-col items-center justify-center px-10 space-y-6">
+          <Image src="/logo.png" alt="Logo" width={64} height={64} />
 
-      <div className="w-full max-w-md bg-white dark:bg-gray-800 shadow-lg rounded-2xl p-8 space-y-5">
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-100 dark:bg-gray-700"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+          <h3 className="text-sm text-gray-500 tracking-wide">Welcome To</h3>
+          <h1 className="text-3xl font-bold text-blue-700">Admin Portal</h1>
 
-        <div className="relative">
+          {/* E‑mail */}
           <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Password"
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-100 dark:bg-gray-700"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full max-w-sm px-4 py-3 border rounded-full bg-gray-100
+             text-gray-800 placeholder-gray-600
+             focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
+          {/* Password + toggle */}
+          <div className="relative w-full max-w-sm">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full max-w-sm px-4 py-3 border rounded-full bg-gray-100
+             text-gray-800 placeholder-gray-600
+             focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
+            >
+              {showPassword ? (
+                <EyeSlashIcon className="w-5 h-5" />
+              ) : (
+                <EyeIcon className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+
+          {/* Botón */}
           <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300"
+            onClick={handleLogin}
+            className="w-full max-w-sm py-3 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-full transition"
           >
-            {showPassword ? (
-              <EyeSlashIcon className="h-5 w-5" />
-            ) : (
-              <EyeSlashIcon className="h-5 w-5" />
-            )}
+            Login
           </button>
+
+          {error && (
+            <p className="text-red-500 text-sm text-center w-full max-w-sm">
+              {error}
+            </p>
+          )}
+          
         </div>
 
-        <button
-          onClick={handleLogin}
-          className="w-full bg-[#FF6347] hover:bg-[#e9553d] text-white font-semibold py-3 rounded-xl shadow-md transition"
-        >
-          Login
-        </button>
-
-        {error && <p className="text-red-500 text-center text-sm">{error}</p>}
+        {/* ---------- LADO DERECHO: GRADIENTE + TEXTO ---------- */}
+        <div className="hidden lg:flex w-1/2 relative">
+          {/* degradado azul */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-blue-900 via-blue-800 to-blue-700" />
+          {/* superposición ligera para contraste */}
+          <div className="absolute inset-0 bg-black opacity-30" />
+          {/* contenido */}
+          <div className="relative z-10 m-auto text-center px-10">
+            <h1 className="text-4xl font-bold text-white mb-4">FarmlandDeli Web</h1>
+            <p className="text-sm text-gray-200 max-w-md">
+              Portal de administración de data de Farmland Deli App.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
