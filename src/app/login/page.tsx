@@ -34,7 +34,7 @@ export default function LoginPage() {
 
   /* quitar modo‑oscuro global */
   useEffect(() => {
-    document.body.className = "bg-white text-gray-900";
+    document.body.classList.remove("bg-gray-900", "text-white");
   }, []);
 
   /* --------------------- UI --------------------- */
