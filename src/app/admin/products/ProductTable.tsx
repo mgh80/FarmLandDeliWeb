@@ -5,13 +5,9 @@ import { FiEdit2, FiTrash2, FiPlus, FiX } from "react-icons/fi";
 
 type Product = {
   id: number;
-  name1: string;
-  name2: string;
-  name3: string;
-  name4: string;
-  name5: string;
-  name6: string;
-  name7: string;
+  Name: string;
+  Description: string;
+  Price: string;
 };
 
 export default function ProductTable() {
@@ -19,13 +15,9 @@ export default function ProductTable() {
   const [products, setProducts] = useState<Product[]>([
     {
       id: 1,
-      name1: "Lorem Ipsum 1",
-      name2: "Lorem Ipsum 2",
-      name3: "Lorem Ipsum 3",
-      name4: "Lorem Ipsum 4",
-      name5: "Lorem Ipsum 5",
-      name6: "Lorem Ipsum 6",
-      name7: "Lorem Ipsum 7",
+      Name: "Lorem Ipsum 1",
+      Description: "Lorem Ipsum 2",
+      Price: "Lorem Ipsum 3",
     },
   ]);
   const [modalOpen, setModalOpen] = useState(false);
@@ -34,9 +26,7 @@ export default function ProductTable() {
   /* ---------- CRUD helpers ---------- */
   const saveProduct = (p: Product) => {
     if (editing) {
-      setProducts((prev) =>
-        prev.map((x) => (x.id === p.id ? p : x))
-      );
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? p : x)));
     } else {
       setProducts((prev) => [...prev, { ...p, id: Date.now() }]);
     }
@@ -78,25 +68,30 @@ export default function ProductTable() {
       {/* tabla */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-gray-700">
+          <thead className="bg-gray-100 text-gray-800">
             <tr>
-              <th className="px-4 py-3 text-left">Action</th>
               <th className="px-4 py-3">No</th>
-              <th className="px-4 py-3">Name Data1</th>
-              <th className="px-4 py-3">Name Data2</th>
-              <th className="px-4 py-3">Name Data3</th>
-              <th className="px-4 py-3">Name Data4</th>
-              <th className="px-4 py-3">Name Data5</th>
-              <th className="px-4 py-3">Name Data6</th>
-              <th className="px-4 py-3">Name Data7</th>
+              <th className="px-4 py-3">Product</th>
+              <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3">Price</th>
+              <th className="px-4 py-3 text-left">Action</th>
             </tr>
           </thead>
 
           <tbody>
             {products.map((p, i) => (
               <tr key={p.id} className={i % 2 ? "bg-gray-50" : ""}>
-                {/* botones a la IZQUIERDA */}
-                <td className="px-4 py-2 whitespace-nowrap">
+                <td className="px-4 py-2 text-center text-gray-800">{i + 1}</td>
+                <td className="px-4 py-2 text-center text-gray-800">
+                  {p.Name}
+                </td>
+                <td className="px-4 py-2 text-center text-gray-800">
+                  {p.Description}
+                </td>
+                <td className="px-4 py-2 text-center text-gray-800">
+                  {p.Price}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap text-gray-800">
                   <button
                     onClick={() => {
                       setEditing(p);
@@ -113,15 +108,6 @@ export default function ProductTable() {
                     <FiTrash2 />
                   </button>
                 </td>
-
-                <td className="px-4 py-2 text-center">{i + 1}</td>
-                <td className="px-4 py-2">{p.name1}</td>
-                <td className="px-4 py-2">{p.name2}</td>
-                <td className="px-4 py-2">{p.name3}</td>
-                <td className="px-4 py-2">{p.name4}</td>
-                <td className="px-4 py-2">{p.name5}</td>
-                <td className="px-4 py-2">{p.name6}</td>
-                <td className="px-4 py-2">{p.name7}</td>
               </tr>
             ))}
           </tbody>
@@ -156,51 +142,46 @@ function ProductModal({
   const [form, setForm] = useState<Product>(
     product ?? {
       id: 0,
-      name1: "",
-      name2: "",
-      name3: "",
-      name4: "",
-      name5: "",
-      name6: "",
-      name7: "",
+      Name: "",
+      Description: "",
+      Price: "",
     }
   );
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-      <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8 space-y-4">
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8 space-y-4 text-gray-800">
         {/* header */}
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-lg font-bold">
             {product ? "Edit Product" : "New Product"}
           </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
             <FiX size={20} />
           </button>
         </div>
 
         {/* form grid */}
         <div className="grid grid-cols-2 gap-4">
-          {(["name1", "name2", "name3", "name4", "name5", "name6", "name7"] as const).map(
-            (field) => (
-              <input
-                key={field}
-                placeholder={field}
-                value={form[field]}
-                onChange={(e) =>
-                  setForm({ ...form, [field]: e.target.value })
-                }
-                className="border rounded-md px-3 py-2 text-sm"
-              />
-            )
-          )}
+          {(["Name", "Description", "Price"] as const).map((field) => (
+            <input
+              key={field}
+              placeholder={field}
+              value={form[field]}
+              onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+              className="border rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-500"
+            />
+          ))}
         </div>
 
         {/* botones */}
         <div className="flex justify-end gap-3 pt-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm"
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm text-gray-800"
           >
             Cancel
           </button>
