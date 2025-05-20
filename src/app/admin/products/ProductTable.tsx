@@ -1,86 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 import { FiEdit2, FiTrash2, FiPlus, FiX } from "react-icons/fi";
 
 type Product = {
-  id: number;
+  Id: number;
   Name: string;
   Description: string;
   Price: string;
 };
 
 export default function ProductTable() {
-  /* ---------- estado ---------- */
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: 1,
-      Name: "Lorem Ipsum 1",
-      Description: "Lorem Ipsum 2",
-      Price: "Lorem Ipsum 3",
-    },
-  ]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
 
-  /* ---------- CRUD helpers ---------- */
-  const saveProduct = (p: Product) => {
-    if (editing) {
-      setProducts((prev) => prev.map((x) => (x.id === p.id ? p : x)));
-    } else {
-      setProducts((prev) => [...prev, { ...p, id: Date.now() }]);
-    }
-    setModalOpen(false);
-    setEditing(null);
+  // 🔄 Cargar productos desde Supabase
+  const fetchProducts = async () => {
+    const { data, error } = await supabase.from("Products").select("*");
+    if (error) console.error("Error al cargar productos:", error);
+    else setProducts(data as Product[]);
   };
 
-  const deleteProduct = (id: number) =>
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
-  /* ---------- UI ---------- */
+  // 💾 Guardar (crear o editar)
+  const saveProduct = async (p: Product) => {
+    if (editing) {
+      const { error } = await supabase
+        .from("Products")
+        .update(p)
+        .eq("Id", p.Id);
+      if (error) return console.error("Error al editar:", error);
+    } else {
+      const { Name, Description, Price } = p;
+      const dataToInsert = { Name, Description, Price };
+
+      const { error } = await supabase.from("Products").insert(dataToInsert);
+
+      if (error) return console.error("Error al crear:", error);
+    }
+
+    setModalOpen(false);
+    setEditing(null);
+    fetchProducts();
+  };
+
+  // 🗑️ Eliminar
+  const deleteProduct = async (id: number) => {
+    const { error } = await supabase.from("Products").delete().eq("Id", id);
+    if (error) console.error("Error al eliminar:", error);
+    else fetchProducts();
+  };
+
   return (
     <div className="p-6">
       {/* barra superior */}
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-        <select className="border rounded px-3 py-2 text-sm">
-          <option>All Year</option>
+      <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+        {/* Filtro por año */}
+        <select className="border border-gray-300 bg-white text-gray-800 font-medium px-4 py-2 rounded-md shadow-sm w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option>All Year</option>
           <option>2024</option>
           <option>2023</option>
         </select>
 
+        {/* Campo de búsqueda */}
         <input
+          type="text"
           placeholder="Search"
-          className="border rounded px-3 py-2 text-sm max-w-xs flex-grow"
+          className="border border-gray-300 bg-white text-gray-800 font-medium px-4 py-2 rounded-md shadow-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
 
+        {/* Botón */}
         <button
           onClick={() => {
             setEditing(null);
             setModalOpen(true);
           }}
-          className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded"
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-md shadow"
         >
           <FiPlus />
-          New Product
+          New Product
         </button>
       </div>
 
       {/* tabla */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-xl border border-gray-300 shadow-md overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-gray-800">
             <tr>
-              <th className="px-4 py-3">No</th>
-              <th className="px-4 py-3">Product</th>
-              <th className="px-4 py-3">Description</th>
-              <th className="px-4 py-3">Price</th>
+              <th className="px-4 py-3 text-center">No</th>
+              <th className="px-4 py-3 text-center">Product</th>
+              <th className="px-4 py-3 text-center">Description</th>
+              <th className="px-4 py-3 text-center">Price</th>
               <th className="px-4 py-3 text-left">Action</th>
             </tr>
           </thead>
-
           <tbody>
             {products.map((p, i) => (
-              <tr key={p.id} className={i % 2 ? "bg-gray-50" : ""}>
+              <tr key={p.Id} className={i % 2 ? "bg-gray-50" : ""}>
                 <td className="px-4 py-2 text-center text-gray-800">{i + 1}</td>
                 <td className="px-4 py-2 text-center text-gray-800">
                   {p.Name}
@@ -102,7 +123,7 @@ export default function ProductTable() {
                     <FiEdit2 />
                   </button>
                   <button
-                    onClick={() => deleteProduct(p.id)}
+                    onClick={() => deleteProduct(p.Id)}
                     className="text-red-600 hover:underline"
                   >
                     <FiTrash2 />
@@ -114,7 +135,7 @@ export default function ProductTable() {
         </table>
       </div>
 
-      {/* -------- Modal New / Edit ---------- */}
+      {/* modal */}
       {modalOpen && (
         <ProductModal
           product={editing}
@@ -129,7 +150,7 @@ export default function ProductTable() {
   );
 }
 
-/* ------------- Modal component ------------- */
+/* ------------ Modal ------------- */
 function ProductModal({
   product,
   onClose,
@@ -141,7 +162,7 @@ function ProductModal({
 }) {
   const [form, setForm] = useState<Product>(
     product ?? {
-      id: 0,
+      Id: 0,
       Name: "",
       Description: "",
       Price: "",
@@ -151,7 +172,7 @@ function ProductModal({
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
       <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8 space-y-4 text-gray-800">
-        {/* header */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-lg font-bold">
             {product ? "Edit Product" : "New Product"}
@@ -164,7 +185,7 @@ function ProductModal({
           </button>
         </div>
 
-        {/* form grid */}
+        {/* Form */}
         <div className="grid grid-cols-2 gap-4">
           {(["Name", "Description", "Price"] as const).map((field) => (
             <input
@@ -177,7 +198,7 @@ function ProductModal({
           ))}
         </div>
 
-        {/* botones */}
+        {/* Botones */}
         <div className="flex justify-end gap-3 pt-4">
           <button
             onClick={onClose}
