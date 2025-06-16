@@ -3,21 +3,81 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FiEdit2, FiTrash2, FiPlus, FiX } from "react-icons/fi";
-import ConfirmModal from "@/components/ConfirmModal";
+import Swal from "sweetalert2";
 
-type Category = {
+// Tipos
+export type Category = {
   Id: number;
   Name: string;
 };
 
+// --------------------------------------------
+// Modal declarado primero para evitar errores
+// --------------------------------------------
+function CategoryModal(props: {
+  category: Category | null;
+  onClose: () => void;
+  onSave: (c: Category) => void;
+}) {
+  const { category, onClose, onSave } = props;
+
+  const [form, setForm] = useState<Category>(
+    category ?? {
+      Id: 0,
+      Name: "",
+    }
+  );
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
+      <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8 space-y-4 text-gray-800">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-lg font-bold">
+            {category ? "Edit Category" : "New Category"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <FiX size={20} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <input
+            placeholder="Name"
+            value={form.Name}
+            onChange={(e) => setForm({ ...form, Name: e.target.value })}
+            className="border rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-500"
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm text-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(form)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --------------------------------------------
+// Componente principal: CategoriesTable
+// --------------------------------------------
 export default function CategoriesTable() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
-  const [confirmMessage, setConfirmMessage] = useState("");
-  const [onConfirmCallback, setOnConfirmCallback] = useState<() => void>(
-    () => {}
-  );
 
   const fetchCategories = async () => {
     const { data, error } = await supabase.from("Categories").select("*");
@@ -30,32 +90,46 @@ export default function CategoriesTable() {
   }, []);
 
   const saveCategory = async (c: Category) => {
+    const confirmResult = await Swal.fire({
+      title: editing ? "Update Category?" : "Create New Category?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes",
+    });
+
+    if (!confirmResult.isConfirmed) return;
+
     if (editing) {
       const { error } = await supabase
         .from("Categories")
         .update(c)
         .eq("Id", c.Id);
-      if (error) return console.error("Error al editar:", error);
+      if (error) return Swal.fire("Error", error.message, "error");
     } else {
-      // 🟩 CREAR: omitir el campo Id
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { Id: _, ...dataToInsert } = c;
       const { error } = await supabase.from("Categories").insert(dataToInsert);
-      if (error) return console.error("Error al crear:", error);
+      if (error) return Swal.fire("Error", error.message, "error");
     }
+
     setModalOpen(false);
     setEditing(null);
     fetchCategories();
   };
 
-  const deleteCategory = (id: number) => {
-    setConfirmMessage("Are you sure you want to delete this category?");
-    setOnConfirmCallback(() => async () => {
-      const { error } = await supabase.from("Categories").delete().eq("Id", id);
-      if (error) console.error("Error al eliminar:", error);
-      else fetchCategories();
-      setConfirmMessage("");
+  const deleteCategory = async (id: number) => {
+    const result = await Swal.fire({
+      title: "Are you sure you want to delete this category?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
     });
+
+    if (!result.isConfirmed) return;
+
+    const { error } = await supabase.from("Categories").delete().eq("Id", id);
+    if (error) Swal.fire("Error", error.message, "error");
+    else fetchCategories();
   };
 
   return (
@@ -124,76 +198,6 @@ export default function CategoriesTable() {
           onSave={saveCategory}
         />
       )}
-
-      {confirmMessage && (
-        <ConfirmModal
-          message={confirmMessage}
-          onConfirm={onConfirmCallback}
-          onCancel={() => setConfirmMessage("")}
-        />
-      )}
-    </div>
-  );
-}
-
-function CategoryModal({
-  category,
-  onClose,
-  onSave,
-}: {
-  category: Category | null;
-  onClose: () => void;
-  onSave: (c: Category) => void;
-}) {
-  const [form, setForm] = useState<Category>(
-    category ?? {
-      Id: 0,
-      Name: "",
-    }
-  );
-
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
-      <div className="w-full max-w-lg bg-white rounded-xl shadow-lg p-8 space-y-4 text-gray-800">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-lg font-bold">
-            {category ? "Edit Category" : "Category"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <FiX size={20} />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4">
-          {(["Name"] as const).map((field) => (
-            <input
-              key={field}
-              placeholder={field}
-              value={form[field]}
-              onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-              className="border rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-500"
-            />
-          ))}
-        </div>
-
-        <div className="flex justify-end gap-3 pt-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm text-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave(form)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
-          >
-            Save
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

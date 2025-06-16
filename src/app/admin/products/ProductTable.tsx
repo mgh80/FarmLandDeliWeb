@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FiEdit2, FiTrash2, FiPlus, FiX } from "react-icons/fi";
+import Swal from "sweetalert2";
 
+// Tipos
 type Product = {
   Id: number;
   Name: string;
   Description: string;
   Price: string;
   Image?: string;
+  CategoryId?: number;
 };
 
 export default function ProductTable() {
@@ -28,12 +31,20 @@ export default function ProductTable() {
   }, []);
 
   const saveProduct = async (p: Product, file: File | null) => {
+    const confirm = await Swal.fire({
+      title: "¿Save product?",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, save",
+      cancelButtonText: "Cancel",
+    });
+    if (!confirm.isConfirmed) return;
+
     let imageUrl = p.Image ?? "";
 
     if (file) {
       const fileExt = file.name.split(".").pop();
       const fileName = `${Date.now()}.${fileExt}`;
-
       const { error: uploadError } = await supabase.storage
         .from("products")
         .upload(fileName, file, {
@@ -57,8 +68,14 @@ export default function ProductTable() {
         .eq("Id", p.Id);
       if (error) return console.error("Error al editar:", error);
     } else {
-      const { Name, Description, Price } = p;
-      const dataToInsert = { Name, Description, Price, Image: imageUrl };
+      const { Name, Description, Price, CategoryId } = p;
+      const dataToInsert = {
+        Name,
+        Description,
+        Price,
+        CategoryId,
+        Image: imageUrl,
+      };
       const { error } = await supabase.from("Products").insert(dataToInsert);
       if (error) return console.error("Error al crear:", error);
     }
@@ -69,6 +86,15 @@ export default function ProductTable() {
   };
 
   const deleteProduct = async (id: number) => {
+    const confirm = await Swal.fire({
+      title: "Are you sure you want to delete this product?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+    });
+    if (!confirm.isConfirmed) return;
+
     const { error } = await supabase.from("Products").delete().eq("Id", id);
     if (error) console.error("Error al eliminar:", error);
     else fetchProducts();
@@ -105,7 +131,6 @@ export default function ProductTable() {
               <th className="px-4 py-2 text-center">Action</th>
             </tr>
           </thead>
-
           <tbody>
             {products.map((p, i) => (
               <tr key={p.Id} className={i % 2 ? "bg-gray-50" : undefined}>
@@ -182,8 +207,20 @@ function ProductModal({
       Price: "",
     }
   );
-
   const [file, setFile] = useState<File | null>(null);
+  const [categories, setCategories] = useState<{ Id: number; Name: string }[]>(
+    []
+  );
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from("Categories")
+        .select("Id, Name");
+      if (!error) setCategories(data);
+    };
+    fetchCategories();
+  }, []);
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
@@ -210,6 +247,21 @@ function ProductModal({
               className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           ))}
+
+          <select
+            value={form.CategoryId || ""}
+            onChange={(e) =>
+              setForm({ ...form, CategoryId: Number(e.target.value) })
+            }
+            className="col-span-2 border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select category</option>
+            {categories.map((c) => (
+              <option key={c.Id} value={c.Id}>
+                {c.Name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-4">
