@@ -69,8 +69,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             />
             <SidebarItem
               icon={CreditCardIcon}
-              label="Payment Methods"
-              href="/admin/payments"
+              label="Users"
+              href="/admin/users"
             />
             <SidebarItem
               icon={ClipboardIcon}
