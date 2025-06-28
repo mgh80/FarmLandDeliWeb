@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import {
   HomeIcon,
   TagIcon,
@@ -11,12 +11,6 @@ import {
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-
-const stats = [
-  { name: "Total Products", value: 12, color: "text-blue-600" },
-  { name: "Total Categories", value: 5, color: "text-green-600" },
-  { name: "Total Orders", value: 8, color: "text-orange-600" },
-];
 
 type SidebarItemProps = {
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
@@ -37,10 +31,64 @@ const SidebarItem = ({ icon: Icon, label, href }: SidebarItemProps) => (
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
 
+  const [stats, setStats] = useState([
+    { name: "Total Products", value: 0, color: "text-blue-600" },
+    { name: "Total Categories", value: 0, color: "text-green-600" },
+    { name: "Total Orders", value: 0, color: "text-orange-600" },
+    { name: "Total Users", value: 0, color: "text-purple-600" },
+  ]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
   };
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [
+          { count: productCount },
+          { count: categoryCount },
+          { count: orderCount },
+          { count: userCount },
+        ] = await Promise.all([
+          supabase.from("Products").select("*", { count: "exact", head: true }),
+          supabase
+            .from("Categories")
+            .select("*", { count: "exact", head: true }),
+          supabase.from("Orders").select("*", { count: "exact", head: true }),
+          supabase.from("Users").select("*", { count: "exact", head: true }),
+        ]);
+
+        setStats([
+          {
+            name: "Total Products",
+            value: productCount || 0,
+            color: "text-blue-600",
+          },
+          {
+            name: "Total Categories",
+            value: categoryCount || 0,
+            color: "text-green-600",
+          },
+          {
+            name: "Total Orders",
+            value: orderCount || 0,
+            color: "text-orange-600",
+          },
+          {
+            name: "Total Users",
+            value: userCount || 0,
+            color: "text-purple-600",
+          },
+        ]);
+      } catch (error) {
+        console.error("Error loading stats:", error);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -94,11 +142,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {/* Main Content */}
       <main className="flex-1 p-10 overflow-y-auto">
-        {/* Dashboard Cards */}
         <h1 className="text-center text-2xl font-bold px-4 py-4 font-sans text-gray-800">
           Administration Panel
         </h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+
+        {/* Dashboard Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {stats.map((stat) => (
             <div
               key={stat.name}
@@ -111,6 +160,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </div>
           ))}
         </div>
+
         {children}
       </main>
     </div>
