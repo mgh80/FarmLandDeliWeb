@@ -25,7 +25,7 @@ export default function LoginPage() {
       return;
     }
 
-    if (data?.user?.email === "delifarmland@gmail.com") {
+    if (data?.user?.email === "quickcateringserviceinc@gmail.com") {
       router.push("/admin");
     } else {
       setError("Acceso denegado: no eres administrador");
@@ -96,7 +96,6 @@ export default function LoginPage() {
               {error}
             </p>
           )}
-          
         </div>
 
         {/* ---------- LADO DERECHO: GRADIENTE + TEXTO ---------- */}
@@ -107,7 +106,9 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-black opacity-30" />
           {/* contenido */}
           <div className="relative z-10 m-auto text-center px-10">
-            <h1 className="text-4xl font-bold text-white mb-4">FarmlandDeli Web</h1>
+            <h1 className="text-4xl font-bold text-white mb-4">
+              FarmlandDeli Web
+            </h1>
             <p className="text-sm text-gray-200 max-w-md">
               Portal de administración de data de Farmland Deli App.
             </p>
