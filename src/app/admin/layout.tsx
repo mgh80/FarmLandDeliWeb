@@ -93,17 +93,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <aside className="w-64 bg-blue-900 text-white flex flex-col justify-between">
+      <aside className="w-64 bg-yellow-400 text-white flex flex-col justify-between">
         <div>
-          <div className="flex items-center justify-center h-20 border-b border-blue-800">
+          <div className="flex flex-col items-center justify-center py-6">
             <Image
               src="/logo.png"
               alt="Logo"
-              width={48}
-              height={48}
+              width={100}
+              height={100}
               className="rounded-full"
             />
           </div>
+          <div className="border-b border-yellow-600 mx-4 mb-2" />
           <nav className="p-4 space-y-2">
             <SidebarItem
               icon={HomeIcon}
@@ -124,6 +125,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               icon={ClipboardIcon}
               label="Orders"
               href="/admin/orders"
+            />
+            <SidebarItem
+              icon={ClipboardIcon}
+              label="Promotions"
+              href="/admin/promotions"
             />
           </nav>
         </div>
