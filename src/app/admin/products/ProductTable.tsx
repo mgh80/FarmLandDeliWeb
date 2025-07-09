@@ -113,7 +113,7 @@ export default function ProductTable() {
             setEditing(null);
             setModalOpen(true);
           }}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md"
+          className="flex items-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-md hover:bg-orange-700"
         >
           <FiPlus /> New Product
         </button>
@@ -121,7 +121,7 @@ export default function ProductTable() {
 
       <div className="bg-white rounded-xl border border-gray-300 shadow overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-gray-800 font-semibold">
+          <thead className="bg-orange-100 text-gray-800 font-semibold">
             <tr>
               <th className="px-4 py-2 text-center">No</th>
               <th className="px-4 py-2 text-center">Image</th>
@@ -133,39 +133,45 @@ export default function ProductTable() {
           </thead>
           <tbody>
             {products.map((p, i) => (
-              <tr key={p.Id} className={i % 2 ? "bg-gray-50" : undefined}>
+              <tr
+                key={p.Id}
+                className={i % 2 === 0 ? "bg-white" : "bg-orange-50"}
+              >
                 <td className="px-4 py-2 text-center text-gray-900">{i + 1}</td>
-                <td className="px-4 py-2 text-center text-gray-900">
+                <td className="px-4 py-2 text-center">
                   {p.Image && (
                     <img
                       src={p.Image}
                       alt={p.Name}
-                      className="w-16 h-16 object-cover rounded"
+                      className="w-16 h-16 object-cover rounded mx-auto"
                     />
                   )}
                 </td>
-                <td className="px-4 py-2 text-center text-gray-900">
+                <td className="px-4 py-2 text-center text-gray-800">
                   {p.Name}
                 </td>
-                <td className="px-4 py-2 text-center text-gray-900">
+                <td className="px-4 py-2 text-center text-gray-800">
                   {p.Description}
                 </td>
-                <td className="px-4 py-2 text-center text-gray-900">
-                  {p.Price}
+                <td className="px-4 py-2 text-center text-gray-800 font-semibold">
+                  $
+                  {parseFloat(p.Price).toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                  })}
                 </td>
-                <td className="px-4 py-2 text-center text-gray-900">
+                <td className="px-4 py-2 text-center">
                   <button
                     onClick={() => {
                       setEditing(p);
                       setModalOpen(true);
                     }}
-                    className="text-blue-600 mr-2"
+                    className="text-blue-600 mr-2 hover:text-blue-800"
                   >
                     <FiEdit2 />
                   </button>
                   <button
                     onClick={() => deleteProduct(p.Id)}
-                    className="text-red-600"
+                    className="text-red-600 hover:text-red-800"
                   >
                     <FiTrash2 />
                   </button>
@@ -244,7 +250,7 @@ function ProductModal({
               placeholder={field}
               value={form[field]}
               onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-              className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           ))}
 
@@ -253,7 +259,7 @@ function ProductModal({
             onChange={(e) =>
               setForm({ ...form, CategoryId: Number(e.target.value) })
             }
-            className="col-span-2 border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="col-span-2 border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
           >
             <option value="">Select category</option>
             {categories.map((c) => (
@@ -272,8 +278,8 @@ function ProductModal({
             className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4
               file:rounded-md file:border-0
               file:text-sm file:font-semibold
-              file:bg-blue-50 file:text-blue-700
-              hover:file:bg-blue-100"
+              file:bg-orange-50 file:text-orange-700
+              hover:file:bg-orange-100"
           />
         </div>
 
@@ -286,7 +292,7 @@ function ProductModal({
           </button>
           <button
             onClick={() => onSave(form, file)}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm"
           >
             Save
           </button>

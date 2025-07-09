@@ -119,29 +119,34 @@ export default function UsersTable() {
       </div>
 
       {/* 🧾 Tabla de usuarios */}
-      <table className="min-w-full bg-white shadow rounded-lg text-gray-900">
-        <thead className="bg-gray-200 text-gray-700">
+      <table className="min-w-full bg-white shadow-md rounded-xl text-gray-900">
+        <thead className="bg-orange-100 text-black font-semibold">
           <tr>
-            <th className="p-3 text-left">Name</th>
-            <th className="p-3 text-left">Email</th>
-            <th className="p-3 text-left">Orders Number</th>
-            <th className="p-3 text-left">Points</th>
-            <th className="p-3 text-left">Action</th>
+            <th className="p-3 text-left border-b border-gray-300">Name</th>
+            <th className="p-3 text-left border-b border-gray-300">Email</th>
+            <th className="p-3 text-left border-b border-gray-300">
+              Orders Number
+            </th>
+            <th className="p-3 text-left border-b border-gray-300">Points</th>
+            <th className="p-3 text-left border-b border-gray-300">Action</th>
           </tr>
         </thead>
         <tbody>
           {filteredUsers.map((user) => (
-            <tr key={user.id} className="border-b hover:bg-gray-50">
-              <td className="p-3">{user.name}</td>
-              <td className="p-3">{user.email}</td>
-              <td className="p-3">
+            <tr
+              key={user.id}
+              className="border-b border-gray-200 hover:bg-gray-50"
+            >
+              <td className="p-3 text-gray-900">{user.name}</td>
+              <td className="p-3 text-gray-900">{user.email}</td>
+              <td className="p-3 text-gray-900">
                 <ul className="list-disc list-inside space-y-1">
                   {user.orders.map((o, index) => (
                     <li key={index}>{o.ordernumber}</li>
                   ))}
                 </ul>
               </td>
-              <td className="p-3">{user.points}</td>
+              <td className="p-3 text-gray-900">{user.points}</td>
               <td className="p-3">
                 <button
                   onClick={() => handleRedeem(user)}

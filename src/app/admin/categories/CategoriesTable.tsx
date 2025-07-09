@@ -48,7 +48,7 @@ function CategoryModal(props: {
             placeholder="Name"
             value={form.Name}
             onChange={(e) => setForm({ ...form, Name: e.target.value })}
-            className="border rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-500"
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-500"
           />
         </div>
 
@@ -61,7 +61,7 @@ function CategoryModal(props: {
           </button>
           <button
             onClick={() => onSave(form)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm"
+            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm"
           >
             Save
           </button>
@@ -107,7 +107,7 @@ export default function CategoriesTable() {
       if (error) return Swal.fire("Error", error.message, "error");
     } else {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { Id: _, ...dataToInsert } = c;
+      const { Id, ...dataToInsert } = c;
       const { error } = await supabase.from("Categories").insert(dataToInsert);
       if (error) return Swal.fire("Error", error.message, "error");
     }
@@ -140,7 +140,7 @@ export default function CategoriesTable() {
             setEditing(null);
             setModalOpen(true);
           }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-md shadow"
+          className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-semibold px-4 py-2 rounded-md shadow"
         >
           <FiPlus />
           New Category
@@ -148,8 +148,8 @@ export default function CategoriesTable() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-300 shadow-md overflow-x-auto">
-        <table className="w-full text-sm text-gray-800 border-collapse">
-          <thead className="bg-gray-100 text-gray-800">
+        <table className="w-full text-sm text-gray-900 border-collapse">
+          <thead className="bg-orange-100 text-black font-semibold">
             <tr className="border-b border-gray-300">
               <th className="px-4 py-3 border-r">No</th>
               <th className="px-4 py-3 border-r">Name</th>
@@ -159,9 +159,13 @@ export default function CategoriesTable() {
           <tbody>
             {categories.map((c, i) => (
               <tr key={c.Id} className="border-b border-gray-200">
-                <td className="px-4 py-2 text-center border-r">{i + 1}</td>
-                <td className="px-4 py-2 text-center border-r">{c.Name}</td>
-                <td className="px-4 py-2 text-center">
+                <td className="px-4 py-2 text-center text-gray-900 border-r">
+                  {i + 1}
+                </td>
+                <td className="px-4 py-2 text-center text-gray-900 border-r">
+                  {c.Name}
+                </td>
+                <td className="px-4 py-2 text-center text-gray-900">
                   <button
                     onClick={() => {
                       setEditing(c);
