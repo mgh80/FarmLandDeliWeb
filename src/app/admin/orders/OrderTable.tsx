@@ -333,7 +333,7 @@ export default function OrderTable() {
                     }`}
                     disabled={selectedStatusId !== 1}
                   >
-                    {selectedStatusId === 1 ? "Entregar" : "Entregado"}
+                    {selectedStatusId === 1 ? "Deliver" : "Delivered"}
                   </button>
                 </div>
               </>
