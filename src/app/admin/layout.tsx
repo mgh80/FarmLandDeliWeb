@@ -2,11 +2,13 @@
 
 import React, { ReactNode, useEffect, useState } from "react";
 import {
-  HomeIcon,
-  TagIcon,
-  CreditCardIcon,
-  ClipboardIcon,
+  Squares2X2Icon,
+  UserIcon,
+  ClipboardDocumentListIcon,
   ArrowRightOnRectangleIcon,
+  TagIcon,
+  MegaphoneIcon,
+  KeyIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -107,30 +109,27 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="border-b border-yellow-600 mx-4 mb-2" />
           <nav className="p-4 space-y-2">
             <SidebarItem
-              icon={HomeIcon}
+              icon={TagIcon}
               label="Products"
               href="/admin/products"
             />
             <SidebarItem
-              icon={TagIcon}
+              icon={Squares2X2Icon}
               label="Categories"
               href="/admin/categories"
             />
+            <SidebarItem icon={UserIcon} label="Users" href="/admin/users" />
             <SidebarItem
-              icon={CreditCardIcon}
-              label="Users"
-              href="/admin/users"
-            />
-            <SidebarItem
-              icon={ClipboardIcon}
+              icon={ClipboardDocumentListIcon}
               label="Orders"
               href="/admin/orders"
             />
             <SidebarItem
-              icon={ClipboardIcon}
+              icon={MegaphoneIcon}
               label="Promotions"
               href="/admin/promotions"
             />
+            <SidebarItem icon={KeyIcon} label="Roles" href="/admin/roles" />
           </nav>
         </div>
 
