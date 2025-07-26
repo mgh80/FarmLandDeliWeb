@@ -46,7 +46,7 @@ export default function RolesPage() {
     return data
       .map((perm) => perm.module_name)
       .filter((mod): mod is string => typeof mod === "string" && mod.length > 0)
-      .map((mod) => mod.trim().toLowerCase()); // aseguramos minúsculas
+      .map((mod) => mod.trim().toLowerCase()); // ✅ fuerza minúsculas
   }
 
   async function fetchUsersWithPermissions() {
@@ -126,7 +126,7 @@ export default function RolesPage() {
 
     const inserts = modules.map((mod) => ({
       user_id: userId,
-      module_name: mod.toLowerCase(),
+      module_name: mod.toLowerCase(), // ✅ insert consistent lowercase
     }));
 
     const { error: insertError } = await supabase
@@ -143,13 +143,14 @@ export default function RolesPage() {
   }
 
   const togglePermission = (userId: string, module: string) => {
+    const normalizedModule = module.toLowerCase(); // ✅ minúsculas
     const updatedUsers = users.map((user) => {
       if (user.id !== userId) return user;
 
-      const hasPermission = user.permissions.includes(module.toLowerCase());
+      const hasPermission = user.permissions.includes(normalizedModule);
       const updatedPermissions = hasPermission
-        ? user.permissions.filter((perm) => perm !== module.toLowerCase())
-        : [...user.permissions, module.toLowerCase()];
+        ? user.permissions.filter((perm) => perm !== normalizedModule)
+        : [...user.permissions, normalizedModule];
 
       return { ...user, permissions: updatedPermissions };
     });
@@ -191,11 +192,8 @@ export default function RolesPage() {
               <td className="px-4 py-2">
                 <div className="flex flex-col gap-1">
                   {AVAILABLE_MODULES.map((mod) => {
-                    const isChecked = u.permissions.includes(mod.toLowerCase());
-                    console.log(
-                      `🔍 Usuario: ${u.email}, Mod: ${mod}, Checked: ${isChecked}`
-                    );
-
+                    const normalizedMod = mod.toLowerCase();
+                    const isChecked = u.permissions.includes(normalizedMod);
                     return (
                       <label key={mod} className="flex items-center gap-2">
                         <input

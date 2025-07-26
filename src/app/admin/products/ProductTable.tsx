@@ -19,6 +19,7 @@ export default function ProductTable() {
   const [products, setProducts] = useState<Product[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchProducts = async () => {
     const { data, error } = await supabase.from("Products").select("*");
@@ -29,6 +30,12 @@ export default function ProductTable() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  const filteredProducts = products.filter((p) =>
+    `${p.Name} ${p.Description}`
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase())
+  );
 
   const saveProduct = async (p: Product, file: File | null) => {
     const confirm = await Swal.fire({
@@ -102,12 +109,31 @@ export default function ProductTable() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between mb-6 gap-4">
-        <input
-          type="text"
-          placeholder="Search"
-          className="border border-gray-300 px-4 py-2 rounded-md w-64"
-        />
+      <div className="flex justify-center mb-6 gap-4">
+        <div className="flex items-center border-2 border-orange-500 rounded-md px-3 py-2 w-96 bg-white">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18a7.5 7.5 0 006.15-3.35z"
+            />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search for order or name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="ml-3 w-full focus:outline-none text-sm text-gray-800 placeholder-gray-400"
+          />
+        </div>
+
         <button
           onClick={() => {
             setEditing(null);
@@ -132,7 +158,7 @@ export default function ProductTable() {
             </tr>
           </thead>
           <tbody>
-            {products.map((p, i) => (
+            {filteredProducts.map((p, i) => (
               <tr
                 key={p.Id}
                 className={i % 2 === 0 ? "bg-white" : "bg-orange-50"}
@@ -275,11 +301,7 @@ function ProductModal({
             type="file"
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4
-              file:rounded-md file:border-0
-              file:text-sm file:font-semibold
-              file:bg-orange-50 file:text-orange-700
-              hover:file:bg-orange-100"
+            className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
           />
         </div>
 
