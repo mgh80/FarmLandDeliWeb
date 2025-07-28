@@ -9,6 +9,7 @@ import {
   TagIcon,
   MegaphoneIcon,
   KeyIcon,
+  BellIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -118,7 +119,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               label="Categories"
               href="/admin/categories"
             />
-            <SidebarItem icon={UserIcon} label="Users" href="/admin/users" />
+            <SidebarItem
+              icon={UserIcon}
+              label="Customers"
+              href="/admin/users"
+            />
             <SidebarItem
               icon={ClipboardDocumentListIcon}
               label="Orders"
@@ -130,6 +135,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               href="/admin/promotions"
             />
             <SidebarItem icon={KeyIcon} label="Roles" href="/admin/roles" />
+            <SidebarItem
+              icon={BellIcon}
+              label="Notifications"
+              href="/admin/notifications"
+            />
           </nav>
         </div>
 

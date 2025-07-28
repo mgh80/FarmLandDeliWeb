@@ -60,7 +60,7 @@ export default function ProductTable() {
         });
 
       if (uploadError) {
-        console.error("Error al subir la imagen:", uploadError);
+        console.error("Error to upload the image:", uploadError);
         return;
       }
 
@@ -73,7 +73,7 @@ export default function ProductTable() {
         .from("Products")
         .update({ ...p, Image: imageUrl })
         .eq("Id", p.Id);
-      if (error) return console.error("Error al editar:", error);
+      if (error) return console.error("Error to edit:", error);
     } else {
       const { Name, Description, Price, CategoryId } = p;
       const dataToInsert = {
@@ -84,7 +84,7 @@ export default function ProductTable() {
         Image: imageUrl,
       };
       const { error } = await supabase.from("Products").insert(dataToInsert);
-      if (error) return console.error("Error al crear:", error);
+      if (error) return console.error("Error to create:", error);
     }
 
     setModalOpen(false);
@@ -103,7 +103,7 @@ export default function ProductTable() {
     if (!confirm.isConfirmed) return;
 
     const { error } = await supabase.from("Products").delete().eq("Id", id);
-    if (error) console.error("Error al eliminar:", error);
+    if (error) console.error("Error to delete:", error);
     else fetchProducts();
   };
 
@@ -127,7 +127,7 @@ export default function ProductTable() {
           </svg>
           <input
             type="text"
-            placeholder="Search for order or name..."
+            placeholder="Search product name or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="ml-3 w-full focus:outline-none text-sm text-gray-800 placeholder-gray-400"
