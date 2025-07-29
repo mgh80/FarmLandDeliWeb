@@ -1,224 +1,304 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
 
-interface User {
+type UserWithPermissions = {
   id: string;
   email: string;
+  name: string;
   role: string;
   permissions: string[];
-}
+};
 
-const AVAILABLE_MODULES = [
-  "Products",
-  "Categories",
-  "Orders",
-  "Promotions",
-  "Roles",
-];
+const ALL_PERMISSIONS = ["orders", "products", "roles"];
 
-export default function RolesPage() {
-  const [users, setUsers] = useState<User[]>([]);
+export default function Page() {
+  const [users, setUsers] = useState<UserWithPermissions[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: "",
+    password: "",
+    role: "",
+    name: "",
+  });
 
-  useEffect(() => {
-    fetchUsersWithPermissions();
-  }, []);
-
-  useEffect(() => {
-    if (users.length > 0) {
-      console.log("🚀 USERS LOADED:", users);
-    }
-  }, [users]);
-
-  async function fetchPermissions(userId: string): Promise<string[]> {
-    const { data, error } = await supabase
-      .from("UserPermissions")
-      .select("module_name")
-      .eq("user_id", userId);
-
-    if (error || !data) {
-      console.error("❌ Error fetching permissions", error);
-      return [];
-    }
-
-    return data
-      .map((perm) => perm.module_name)
-      .filter((mod): mod is string => typeof mod === "string" && mod.length > 0)
-      .map((mod) => mod.trim().toLowerCase()); // ✅ fuerza minúsculas
-  }
-
-  async function fetchUsersWithPermissions() {
+  const fetchUsers = async () => {
     const { data: usersData, error } = await supabase
       .from("Users")
-      .select("id, email, role");
-
-    if (error || !usersData) {
-      console.error("❌ Error loading users", error);
-      return;
-    }
-
-    const enrichedUsers = await Promise.all(
-      usersData.map(async (user) => {
-        const permissions = await fetchPermissions(user.id);
-        return {
-          ...user,
-          role: user.role ?? "",
-          permissions,
-        };
-      })
-    );
-
-    setUsers(enrichedUsers as User[]);
-  }
-
-  async function updateRole(id: string, newRole: string) {
-    const { isConfirmed } = await Swal.fire({
-      title: "Are you sure?",
-      text: "The user's role will be updated.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Yes, update",
-      cancelButtonText: "Cancel",
-    });
-
-    if (!isConfirmed) return;
-
-    const { error } = await supabase
-      .from("Users")
-      .update({ role: newRole })
-      .eq("id", id);
+      .select("id, email, name, role")
+      .not("role", "is", null);
 
     if (error) {
-      Swal.fire("Error", "Could not update the role.", "error");
-    } else {
-      Swal.fire("Updated", "The role was successfully changed.", "success");
-      fetchUsersWithPermissions();
-    }
-  }
-
-  async function updatePermissions(userId: string, modules: string[]) {
-    const { isConfirmed } = await Swal.fire({
-      title: "Are you sure?",
-      text: "User permissions will be updated.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#3085d6",
-      cancelButtonColor: "#d33",
-      confirmButtonText: "Yes, save",
-      cancelButtonText: "Cancel",
-    });
-
-    if (!isConfirmed) return;
-
-    const { error: deleteError } = await supabase
-      .from("UserPermissions")
-      .delete()
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      Swal.fire("Error", "Previous permissions could not be removed.", "error");
+      console.error("Error fetching users:", error.message);
       return;
     }
 
-    const inserts = modules.map((mod) => ({
-      user_id: userId,
-      module_name: mod.toLowerCase(), // ✅ insert consistent lowercase
-    }));
+    const results: UserWithPermissions[] = [];
 
-    const { error: insertError } = await supabase
-      .from("UserPermissions")
-      .insert(inserts);
+    for (const user of usersData) {
+      const { data: permissions } = await supabase
+        .from("UserPermissions")
+        .select("module_name")
+        .eq("user_id", user.id);
 
-    if (insertError) {
-      console.error("❌ Error inserting permissions", insertError);
-      Swal.fire("Error", "New permissions could not be saved.", "error");
-    } else {
-      Swal.fire("Saved", "Permits were updated correctly.", "success");
-      fetchUsersWithPermissions();
+      const userWithPerms: UserWithPermissions = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        permissions: permissions?.map((p) => p.module_name) || [],
+      };
+
+      results.push(userWithPerms);
     }
-  }
 
-  const togglePermission = (userId: string, module: string) => {
-    const normalizedModule = module.toLowerCase(); // ✅ minúsculas
-    const updatedUsers = users.map((user) => {
-      if (user.id !== userId) return user;
+    setUsers(results);
+  };
 
-      const hasPermission = user.permissions.includes(normalizedModule);
-      const updatedPermissions = hasPermission
-        ? user.permissions.filter((perm) => perm !== normalizedModule)
-        : [...user.permissions, normalizedModule];
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-      return { ...user, permissions: updatedPermissions };
+  const handleCreateUser = async () => {
+    const { email, password, role, name } = newUser;
+
+    if (!email || !password || !role || !name) {
+      Swal.fire("Error", "All fields are required", "error");
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
     });
 
-    setUsers(updatedUsers);
+    if (authError) {
+      Swal.fire("Error", authError.message, "error");
+      return;
+    }
+
+    const userId = authData?.user?.id;
+    if (!userId) {
+      Swal.fire("Error", "User not created", "error");
+      return;
+    }
+
+    const { error: insertError } = await supabase
+      .from("Users")
+      .insert([{ id: userId, email, role, name, points: 0 }]);
+
+    if (insertError) {
+      Swal.fire("Error", insertError.message, "error");
+    } else {
+      Swal.fire("Success", "User created successfully", "success");
+      setShowModal(false);
+      setNewUser({ email: "", password: "", role: "", name: "" });
+      fetchUsers();
+    }
+  };
+
+  const togglePermission = async (
+    userId: string,
+    permission: string,
+    hasPermission: boolean
+  ) => {
+    if (hasPermission) {
+      const { error } = await supabase
+        .from("UserPermissions")
+        .delete()
+        .eq("user_id", userId)
+        .eq("module_name", permission);
+
+      if (error) {
+        Swal.fire("Error", error.message, "error");
+        return;
+      } else {
+        Swal.fire({
+          icon: "info",
+          title: "Permission Removed",
+          text: `The permission \"${permission}\" has been removed.`,
+          confirmButtonColor: "#3085d6",
+        });
+      }
+    } else {
+      const { error } = await supabase
+        .from("UserPermissions")
+        .insert([{ user_id: userId, module_name: permission }]);
+
+      if (error) {
+        Swal.fire("Error", error.message, "error");
+        return;
+      } else {
+        Swal.fire({
+          icon: "success",
+          title: "Permission Granted",
+          text: `The permission \"${permission}\" has been assigned.`,
+          confirmButtonColor: "#3085d6",
+        });
+      }
+    }
+
+    fetchUsers();
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900">
-        Roles Management
-      </h1>
+    <div className="p-6 bg-[#f8f9fa] min-h-screen">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-3xl font-bold text-[#212529]">Role Management</h2>
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-5 py-2 rounded-lg shadow"
+        >
+          Create User
+        </button>
+      </div>
 
-      <table className="min-w-full border bg-white shadow-md rounded-lg overflow-hidden">
-        <thead className="bg-blue-600 text-white">
-          <tr>
-            <th className="text-left px-4 py-2">Email</th>
-            <th className="text-left px-4 py-2">Rol</th>
-            <th className="text-left px-4 py-2">Permissions</th>
-            <th className="text-left px-4 py-2">Update</th>
-          </tr>
-        </thead>
-        <tbody className="text-gray-900">
-          {users.map((u) => (
-            <tr key={u.id} className="border-b hover:bg-gray-50">
-              <td className="px-4 py-2">{u.email}</td>
-              <td className="px-4 py-2">
-                <select
-                  value={u.role}
-                  onChange={(e) => updateRole(u.id, e.target.value)}
-                  className="border rounded px-2 py-1"
-                >
-                  <option value="">Select the role</option>
-                  <option value="admin">Admin</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-              </td>
-              <td className="px-4 py-2">
-                <div className="flex flex-col gap-1">
-                  {AVAILABLE_MODULES.map((mod) => {
-                    const normalizedMod = mod.toLowerCase();
-                    const isChecked = u.permissions.includes(normalizedMod);
-                    return (
-                      <label key={mod} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => togglePermission(u.id, mod)}
-                        />
-                        <span>{mod}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </td>
-              <td className="px-4 py-2">
-                <button
-                  className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700"
-                  onClick={() => updatePermissions(u.id, u.permissions)}
-                >
-                  Save
-                </button>
-              </td>
+      <div className="overflow-x-auto rounded-lg shadow border bg-white">
+        <table className="min-w-full border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+          <thead className="bg-orange-100 text-orange-700">
+            <tr>
+              <th className="px-6 py-3 text-sm font-semibold uppercase tracking-wider border-b border-orange-300 text-left">
+                Name
+              </th>
+              <th className="px-6 py-3 text-sm font-semibold uppercase tracking-wider border-b border-orange-300 text-left">
+                Email
+              </th>
+              <th className="px-6 py-3 text-sm font-semibold uppercase tracking-wider border-b border-orange-300 text-left">
+                Role
+              </th>
+              <th className="px-6 py-3 text-sm font-semibold uppercase tracking-wider border-b border-orange-300 text-left">
+                Permissions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr
+                key={user.id}
+                className="bg-white hover:bg-orange-50 transition"
+              >
+                <td className="px-6 py-4 border-b border-gray-200 text-gray-800 font-medium">
+                  {user.name}
+                </td>
+                <td className="px-6 py-4 border-b border-gray-200 text-gray-800 font-medium">
+                  {user.email}
+                </td>
+                <td className="px-6 py-4 border-b border-gray-200 text-gray-800 font-medium capitalize">
+                  {user.role}
+                </td>
+                <td className="px-6 py-4 border-b border-gray-200 text-gray-800 font-medium">
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_PERMISSIONS.map((perm) => {
+                      const hasPermission = user.permissions.includes(perm);
+                      return (
+                        <label
+                          key={perm}
+                          className="flex items-center space-x-2"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={hasPermission}
+                            onChange={() =>
+                              togglePermission(user.id, perm, hasPermission)
+                            }
+                            className="form-checkbox text-orange-500"
+                          />
+                          <span className="text-sm">{perm}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl p-6 shadow-md w-full max-w-md">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">
+              Create New User
+            </h3>
+
+            <label className="block mb-1 text-sm text-gray-700">Name</label>
+            <input
+              type="text"
+              placeholder="Enter full name"
+              value={newUser.name}
+              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+              className="w-full mb-4 border border-gray-300 rounded-lg p-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+
+            <label className="block mb-1 text-sm text-gray-700">Email</label>
+            <input
+              type="email"
+              placeholder="Enter email"
+              value={newUser.email}
+              onChange={(e) =>
+                setNewUser({ ...newUser, email: e.target.value })
+              }
+              className="w-full mb-4 border border-gray-300 rounded-lg p-2 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+
+            <label className="block mb-1 text-sm text-gray-700">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter password"
+                value={newUser.password}
+                onChange={(e) =>
+                  setNewUser({ ...newUser, password: e.target.value })
+                }
+                className="w-full mb-4 border border-gray-300 rounded-lg p-2 pr-10 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <div
+                className="absolute inset-y-0 right-3 top-2 cursor-pointer text-gray-500"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeSlashIcon className="h-5 w-5" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </div>
+            </div>
+
+            <label className="block mb-1 text-sm text-gray-700">Role</label>
+            <select
+              className="w-full mb-4 border border-gray-300 rounded-lg p-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              value={newUser.role}
+              onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+            >
+              <option value="" disabled>
+                Select Role
+              </option>
+              <option value="admin">Admin</option>
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+            </select>
+
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-400 text-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateUser}
+                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-medium"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
