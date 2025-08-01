@@ -215,9 +215,21 @@ export default function OrderTable() {
       </div>
 
       {selectedOrder && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-xl w-full">
-            <div className="flex justify-between items-center mb-4">
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-center items-center">
+          <div
+            className="absolute inset-0"
+            onClick={() => {
+              setSelectedOrder(null);
+              setDetails([]);
+              setIngredients([]);
+              setSelectedStatusId(null);
+            }}
+          />
+          <div
+            className="relative bg-white p-6 rounded-lg shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto z-50"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 sticky top-0 bg-white z-10 pb-2">
               <h3 className="text-xl font-semibold text-gray-800">
                 Order details:{" "}
                 <span className="text-orange-600">{selectedOrder}</span>
@@ -315,7 +327,9 @@ export default function OrderTable() {
                       $
                       {(calculateTotal() + calculateTax()).toLocaleString(
                         "en-US",
-                        { minimumFractionDigits: 2 }
+                        {
+                          minimumFractionDigits: 2,
+                        }
                       )}
                     </span>
                   </div>
