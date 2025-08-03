@@ -22,7 +22,8 @@ type OrderDetail = {
 };
 
 type Ingredient = {
-  ingredient_name: string;
+  ingredient_name: string | null;
+  product_name: string | null;
 };
 
 export default function OrderTable() {
@@ -77,7 +78,7 @@ export default function OrderTable() {
       order_number_input: ordernumber,
     });
     if (error) {
-      console.error("Error al cargar ingredientes:", error);
+      console.error("Error al cargar ingredientes y productos combo:", error);
       setIngredients([]);
     } else {
       setIngredients(data || []);
@@ -115,7 +116,6 @@ export default function OrderTable() {
     });
 
     if (result.isConfirmed && selectedOrder) {
-      // Limpieza: eliminar posibles espacios u otros caracteres invisibles
       const cleanOrderNumber = selectedOrder.trim();
 
       const { error } = await supabase
@@ -129,13 +129,10 @@ export default function OrderTable() {
         return;
       }
 
-      // Refrescar data
       await fetchGroupedOrders();
-
-      // Actualizar estado local
       setSelectedStatusId(2);
 
-      Swal.fire("Delivered!, The order has been updated.", "success");
+      Swal.fire("Delivered!", "The order has been updated.", "success");
     }
   };
 
@@ -148,7 +145,7 @@ export default function OrderTable() {
           <FiSearch className="absolute left-3 top-3 text-gray-500" size={18} />
           <input
             type="text"
-            placeholder="Search for order o name..."
+            placeholder="Search for order or name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full shadow-sm text-sm bg-white text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -292,12 +289,36 @@ export default function OrderTable() {
                 {ingredients.length > 0 && (
                   <div className="mt-6">
                     <h4 className="text-gray-700 font-semibold mb-2">
-                      Ingredients:
+                      Ingredients and Combo Extras:
                     </h4>
                     <ul className="list-disc list-inside text-gray-600 text-sm space-y-1">
-                      {ingredients.map((ing, idx) => (
-                        <li key={idx}>{ing.ingredient_name}</li>
-                      ))}
+                      {ingredients.map((ing, idx) => {
+                        if (ing.ingredient_name && !ing.product_name) {
+                          return <li key={idx}>{ing.ingredient_name}</li>;
+                        }
+                        if (ing.product_name && !ing.ingredient_name) {
+                          return (
+                            <li key={idx}>
+                              <span className="font-bold text-orange-700">
+                                Combo:
+                              </span>{" "}
+                              {ing.product_name}
+                            </li>
+                          );
+                        }
+                        if (ing.product_name && ing.ingredient_name) {
+                          return (
+                            <li key={idx}>
+                              {ing.ingredient_name} (
+                              <span className="font-bold text-orange-700">
+                                {ing.product_name}
+                              </span>
+                              )
+                            </li>
+                          );
+                        }
+                        return null;
+                      })}
                     </ul>
                   </div>
                 )}
@@ -322,7 +343,7 @@ export default function OrderTable() {
                     </span>
                   </div>
                   <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
-                    <span>Total Final:</span>
+                    <span>Total:</span>
                     <span className="text-orange-600">
                       $
                       {(calculateTotal() + calculateTax()).toLocaleString(
