@@ -34,6 +34,7 @@ export default function OrderTable() {
   const [details, setDetails] = useState<OrderDetail[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [orderReady, setOrderReady] = useState<boolean>(false);
 
   const fetchGroupedOrders = async () => {
     const { data, error } = await supabase
@@ -59,15 +60,18 @@ export default function OrderTable() {
       setDetails(data);
     }
 
-    // Estado actualizado
+    // Estado actualizado y si está lista para recoger
     const { data: orderStatus, error: statusError } = await supabase
       .from("Orders")
-      .select("statusid")
+      .select("statusid, orderstatus")
       .eq("ordernumber", ordernumber)
       .single();
 
     if (!statusError && orderStatus) {
       setSelectedStatusId(orderStatus.statusid);
+      setOrderReady(!!orderStatus.orderstatus);
+    } else {
+      setOrderReady(false);
     }
 
     setLoadingDetails(false);
@@ -133,6 +137,33 @@ export default function OrderTable() {
       setSelectedStatusId(2);
 
       Swal.fire("Delivered!", "The order has been updated.", "success");
+    }
+  };
+
+  const handleMarkAsReady = async () => {
+    const res = await Swal.fire({
+      title: "Mark as Ready for Pickup?",
+      text: "This will stop the app timer and notify the customer that the order is ready for pickup.",
+      icon: "info",
+      showCancelButton: true,
+      confirmButtonText: "Yes, mark as ready",
+    });
+    if (res.isConfirmed && selectedOrder) {
+      const { error } = await supabase
+        .from("Orders")
+        .update({ orderstatus: true })
+        .eq("ordernumber", selectedOrder.trim());
+
+      if (error) {
+        Swal.fire("Error", "The order could not be updated.", "error");
+        return;
+      }
+      setOrderReady(true);
+      Swal.fire(
+        "Success!",
+        "The order has been marked as ready for pickup.",
+        "success"
+      );
     }
   };
 
@@ -220,6 +251,7 @@ export default function OrderTable() {
               setDetails([]);
               setIngredients([]);
               setSelectedStatusId(null);
+              setOrderReady(false);
             }}
           />
           <div
@@ -237,6 +269,7 @@ export default function OrderTable() {
                   setDetails([]);
                   setIngredients([]);
                   setSelectedStatusId(null);
+                  setOrderReady(false);
                 }}
                 className="text-gray-500 hover:text-red-500 text-lg"
               >
@@ -356,7 +389,17 @@ export default function OrderTable() {
                   </div>
                 </div>
 
-                <div className="text-right mt-6">
+                <div className="text-right mt-6 flex gap-3 justify-end">
+                  {/* Botón Mark as Ready for Pickup */}
+                  {selectedStatusId === 1 && !orderReady && (
+                    <button
+                      onClick={handleMarkAsReady}
+                      className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Order ready
+                    </button>
+                  )}
+
                   <button
                     onClick={
                       selectedStatusId === 1 ? handleMarkAsDelivered : undefined
@@ -371,6 +414,12 @@ export default function OrderTable() {
                     {selectedStatusId === 1 ? "Deliver" : "Delivered"}
                   </button>
                 </div>
+                {/* Mensaje cuando la orden ya está lista */}
+                {orderReady && (
+                  <div className="mt-4 text-blue-700 font-semibold text-right">
+                    Order marked as ready for pickup.
+                  </div>
+                )}
               </>
             )}
           </div>
