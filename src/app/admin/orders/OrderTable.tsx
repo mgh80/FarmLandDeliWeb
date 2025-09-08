@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { FiSearch } from "react-icons/fi";
 import Swal from "sweetalert2";
 
-// Tipos
 type GroupedOrder = {
   ordernumber: string;
   total: number;
@@ -60,7 +59,6 @@ export default function OrderTable() {
       setDetails(data);
     }
 
-    // Estado actualizado y si está lista para recoger
     const { data: orderStatus, error: statusError } = await supabase
       .from("Orders")
       .select("statusid, orderstatus")
@@ -281,116 +279,162 @@ export default function OrderTable() {
               <p className="text-center text-gray-600">Loading...</p>
             ) : (
               <>
-                <table className="w-full text-sm border-t border-gray-200 mt-2">
-                  <thead>
-                    <tr className="text-left text-gray-700 font-semibold">
-                      <th className="py-2">Product</th>
-                      <th className="py-2 text-center">Quantity</th>
-                      <th className="py-2 text-center">Price</th>
-                      <th className="py-2 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {details.map((item, i) => (
-                      <tr
-                        key={i}
-                        className={i % 2 === 0 ? "bg-white" : "bg-orange-50"}
-                      >
-                        <td className="py-2 text-gray-800">
-                          {item.product_name}
-                        </td>
-                        <td className="py-2 text-center text-gray-800">
-                          {item.quantity}
-                        </td>
-                        <td className="py-2 text-center text-gray-800">
-                          $
-                          {item.unit_price.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </td>
-                        <td className="py-2 text-right text-gray-800">
-                          $
-                          {item.subtotal.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </td>
+                <div id="print-area">
+                  <h2 className="text-lg font-bold text-gray-800 mb-2">
+                    Order #{selectedOrder}
+                  </h2>
+                  <table className="w-full text-sm border-t border-gray-200 mt-2">
+                    <thead>
+                      <tr className="text-left text-gray-700 font-semibold">
+                        <th className="py-2">Product</th>
+                        <th className="py-2 text-center">Quantity</th>
+                        <th className="py-2 text-center">Price</th>
+                        <th className="py-2 text-right">Subtotal</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {details.map((item, i) => (
+                        <tr
+                          key={i}
+                          className={i % 2 === 0 ? "bg-white" : "bg-orange-50"}
+                        >
+                          <td className="py-2 text-gray-800">
+                            {item.product_name}
+                          </td>
+                          <td className="py-2 text-center text-gray-800">
+                            {item.quantity}
+                          </td>
+                          <td className="py-2 text-center text-gray-800">
+                            $
+                            {item.unit_price.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="py-2 text-right text-gray-800">
+                            $
+                            {item.subtotal.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
-                {ingredients.length > 0 && (
-                  <div className="mt-6">
-                    <h4 className="text-gray-700 font-semibold mb-2">
-                      Ingredients and Combo Extras:
-                    </h4>
-                    <ul className="list-disc list-inside text-gray-600 text-sm space-y-1">
-                      {ingredients.map((ing, idx) => {
-                        if (ing.ingredient_name && !ing.product_name) {
-                          return <li key={idx}>{ing.ingredient_name}</li>;
-                        }
-                        if (ing.product_name && !ing.ingredient_name) {
-                          return (
-                            <li key={idx}>
-                              <span className="font-bold text-orange-700">
-                                Combo:
-                              </span>{" "}
-                              {ing.product_name}
-                            </li>
-                          );
-                        }
-                        if (ing.product_name && ing.ingredient_name) {
-                          return (
-                            <li key={idx}>
-                              {ing.ingredient_name} (
-                              <span className="font-bold text-orange-700">
+                  {ingredients.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-gray-700 font-semibold mb-2">
+                        Ingredients and Combo Extras:
+                      </h4>
+                      <ul className="list-disc list-inside text-gray-600 text-sm space-y-1">
+                        {ingredients.map((ing, idx) => {
+                          if (ing.ingredient_name && !ing.product_name) {
+                            return <li key={idx}>{ing.ingredient_name}</li>;
+                          }
+                          if (ing.product_name && !ing.ingredient_name) {
+                            return (
+                              <li key={idx}>
+                                <strong className="text-orange-700">
+                                  Combo:
+                                </strong>{" "}
                                 {ing.product_name}
-                              </span>
-                              )
-                            </li>
-                          );
-                        }
-                        return null;
-                      })}
-                    </ul>
-                  </div>
-                )}
+                              </li>
+                            );
+                          }
+                          if (ing.product_name && ing.ingredient_name) {
+                            return (
+                              <li key={idx}>
+                                {ing.ingredient_name} (
+                                <strong className="text-orange-700">
+                                  {ing.product_name}
+                                </strong>
+                                )
+                              </li>
+                            );
+                          }
+                          return null;
+                        })}
+                      </ul>
+                    </div>
+                  )}
 
-                <div className="mt-6 border-t border-gray-200 pt-4 text-sm text-gray-700">
-                  <div className="flex justify-between mb-1">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold">
-                      $
-                      {calculateTotal().toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between mb-1">
-                    <span>Tax (6%):</span>
-                    <span className="font-semibold">
-                      $
-                      {calculateTax().toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
-                    <span>Total:</span>
-                    <span className="text-orange-600">
-                      $
-                      {(calculateTotal() + calculateTax()).toLocaleString(
-                        "en-US",
-                        {
+                  <div className="mt-6 border-t border-gray-200 pt-4 text-sm text-gray-700">
+                    <div className="flex justify-between mb-1">
+                      <span>Subtotal:</span>
+                      <span className="font-semibold">
+                        $
+                        {calculateTotal().toLocaleString("en-US", {
                           minimumFractionDigits: 2,
-                        }
-                      )}
-                    </span>
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                      <span>Tax (6%):</span>
+                      <span className="font-semibold">
+                        $
+                        {calculateTax().toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-base font-bold text-gray-900 mt-2">
+                      <span>Total:</span>
+                      <span className="text-orange-600">
+                        $
+                        {(calculateTotal() + calculateTax()).toLocaleString(
+                          "en-US",
+                          {
+                            minimumFractionDigits: 2,
+                          }
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-right mt-6 flex gap-3 justify-end">
-                  {/* Botón Mark as Ready for Pickup */}
+                <div className="text-right mt-6 flex gap-3 justify-end flex-wrap">
+                  <button
+                    onClick={() => {
+                      const printWindow = window.open(
+                        "",
+                        "PRINT",
+                        "height=600,width=800"
+                      );
+                      const docContent =
+                        document.getElementById("print-area")?.innerHTML;
+
+                      if (printWindow && docContent) {
+                        printWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>Order ${selectedOrder}</title>
+                              <style>
+                                body { font-family: Arial, sans-serif; padding: 20px; }
+                                h2 { color: #ea580c; }
+                                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+                                th { background-color: #f3f4f6; }
+                                ul { padding-left: 20px; margin-top: 10px; }
+                              </style>
+                            </head>
+                            <body>
+                              <h1>Farm Land Deli</h1>
+                              <p><strong>Date:</strong> ${new Date().toLocaleString("es-CO")}</p>
+                              ${docContent}
+                            </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                        printWindow.focus();
+                        printWindow.print();
+                        printWindow.close();
+                      }
+                    }}
+                    className="px-4 py-2 rounded-md bg-gray-500 text-white hover:bg-gray-600"
+                  >
+                    🖨️ Print
+                  </button>
+
                   {selectedStatusId === 1 && !orderReady && (
                     <button
                       onClick={handleMarkAsReady}
@@ -414,7 +458,7 @@ export default function OrderTable() {
                     {selectedStatusId === 1 ? "Deliver" : "Delivered"}
                   </button>
                 </div>
-                {/* Mensaje cuando la orden ya está lista */}
+
                 {orderReady && (
                   <div className="mt-4 text-blue-700 font-semibold text-right">
                     Order marked as ready for pickup.
