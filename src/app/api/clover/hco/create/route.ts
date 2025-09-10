@@ -38,6 +38,18 @@ export async function OPTIONS(req: Request) {
   });
 }
 
+interface CloverCheckoutResponse {
+  id?: string;
+  checkoutSessionId?: string;
+  href?: string;
+  checkoutPageUrl?: string;
+  _links?: {
+    checkout?: {
+      href: string;
+    };
+  };
+}
+
 export async function POST(req: Request) {
   console.log("🚀 POST recibido en /api/clover/hco/create");
   console.log("🌐 URL completa:", req.url);
@@ -94,14 +106,25 @@ export async function POST(req: Request) {
     }
 
     const payload = {
-      amount: Math.round(Number(body.amount) * 100),
-      currency: "usd",
-      redirectUrl: `${process.env.PUBLIC_BASE_URL}/login/checkout/thank-you`,
-      referenceId: body.referenceId || `ORD-${Date.now()}`,
-      merchantId: CLOVER_MID,
+      customer: {}, // puedes agregar email o phone opcionalmente
+      shoppingCart: {
+        lineItems: [
+          {
+            name: body.referenceId || `ORD-${Date.now()}`,
+            price: Math.round(Number(body.amount) * 100),
+            unitQty: 1,
+          },
+        ],
+      },
+      redirectUrls: {
+        // 🔧 CORREGIDO: URLs sin duplicación
+        success: `${process.env.PUBLIC_BASE_URL}/checkout/thank-you`,
+        failure: `${process.env.PUBLIC_BASE_URL}/checkout/failure`,
+      },
     };
 
-    const CLOVER_HCO_URL = "https://api.clover.com/v1/checkouts";
+    const CLOVER_HCO_URL =
+      "https://api.clover.com/invoicingcheckoutservice/v1/checkouts";
 
     console.log(
       "➡️ Payload enviado a Clover:",
@@ -113,6 +136,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${CLOVER_API_TOKEN}`,
+        "X-Clover-Merchant-Id": CLOVER_MID,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
@@ -124,7 +148,7 @@ export async function POST(req: Request) {
       Object.fromEntries(response.headers.entries())
     );
 
-    let data: unknown = null;
+    let data: CloverCheckoutResponse | null = null;
     let raw: string | null = null;
 
     if (response.status !== 204) {
@@ -145,9 +169,16 @@ export async function POST(req: Request) {
       return corsResponse({ error: data }, response.status, allow);
     }
 
+    // 🔧 CORREGIDO: Extraer correctamente la URL de checkout
+    const checkoutUrl =
+      data?.href || data?.checkoutPageUrl || data?._links?.checkout?.href;
+
+    console.log("🔗 Checkout URL extraída:", checkoutUrl);
+
     const result = {
       message: "Checkout creado exitosamente",
       status: response.status,
+      checkoutPageUrl: checkoutUrl, // 🔧 AÑADIDO: Incluir la URL en la respuesta
       raw: process.env.NODE_ENV === "development" ? data : undefined,
     };
 
