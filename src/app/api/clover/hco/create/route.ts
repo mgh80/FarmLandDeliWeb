@@ -27,7 +27,13 @@ function corsResponse(body: unknown, status = 200, origin = "*") {
 
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin") || "*";
-  const allow = ALLOWED_ORIGINS.includes(origin) ? origin : "*";
+  const allow = ALLOWED_ORIGINS.some(
+    (allowed) =>
+      allowed === origin ||
+      (allowed.includes("*") && origin.includes("vercel.app"))
+  )
+    ? origin
+    : "*";
 
   return new Response(null, {
     status: 200,
@@ -44,60 +50,96 @@ interface CloverCheckoutResponse {
   checkoutSessionId?: string;
   href?: string;
   checkoutPageUrl?: string;
+  checkout_url?: string;
+  session?: {
+    checkout_url?: string;
+    href?: string;
+  };
   _links?: {
     checkout?: {
+      href: string;
+    };
+    self?: {
       href: string;
     };
   };
 }
 
 export async function POST(req: Request) {
-  console.log("POST recibido en /api/clover/hco/create");
-  console.log("URL completa:", req.url);
+  console.log("🚀 POST recibido en /api/clover/hco/create");
+  console.log("🌐 URL completa:", req.url);
+  console.log("📅 Timestamp:", new Date().toISOString());
 
   try {
     const origin = req.headers.get("origin") || "NO_ORIGIN";
-    const allow = ALLOWED_ORIGINS.includes(origin) ? origin : "*";
+    const allow = ALLOWED_ORIGINS.some(
+      (allowed) =>
+        allowed === origin ||
+        (allowed.includes("*") && origin.includes("vercel.app"))
+    )
+      ? origin
+      : "*";
 
-    console.log("Origin detectado:", origin);
-    console.log("CORS permitido:", allow);
+    console.log("📍 Origin detectado:", origin);
+    console.log("✅ CORS permitido:", allow);
 
     // Parsear el body del request
     let body;
     try {
       const rawBody = await req.text();
-      console.log("Raw body:", rawBody);
+      console.log("📄 Raw body recibido:", rawBody);
       body = JSON.parse(rawBody);
-      console.log("Body parseado:", JSON.stringify(body, null, 2));
+      console.log(
+        "📦 Body parseado exitosamente:",
+        JSON.stringify(body, null, 2)
+      );
     } catch (parseError) {
-      console.error("Error parseando body:", parseError);
-      return corsResponse({ error: "Error parsing request body" }, 400, allow);
+      console.error("❌ Error parseando body:", parseError);
+      return corsResponse(
+        {
+          error: "Error parsing request body",
+          details:
+            parseError instanceof Error ? parseError.message : "Unknown error",
+        },
+        400,
+        allow
+      );
     }
 
-    // Obtener variables de entorno
+    // Obtener y validar variables de entorno
     const CLOVER_API_TOKEN = process.env.CLOVER_API_TOKEN;
     const CLOVER_MID = process.env.CLOVER_MID;
-    const PUBLIC_BASE_URL =
+    // Asegurar que PUBLIC_BASE_URL no tenga trailing slash o paths adicionales
+    let PUBLIC_BASE_URL =
       process.env.PUBLIC_BASE_URL || "https://farm-land-deli-web.vercel.app";
+    // Limpiar la URL base si tiene /login u otros paths
+    PUBLIC_BASE_URL = PUBLIC_BASE_URL.replace(/\/login.*$/, "").replace(
+      /\/$/,
+      ""
+    );
 
-    console.log("Variables de entorno:");
+    console.log("🔑 Validación de variables de entorno:");
     console.log(
-      "CLOVER_MID:",
-      CLOVER_MID ? `Definido: ${CLOVER_MID}` : "NO DEFINIDO"
+      "   CLOVER_MID:",
+      CLOVER_MID ? `✅ Presente (${CLOVER_MID})` : "❌ FALTANTE"
     );
     console.log(
-      "CLOVER_API_TOKEN:",
-      CLOVER_API_TOKEN ? "DEFINIDO" : "NO DEFINIDO"
+      "   CLOVER_API_TOKEN:",
+      CLOVER_API_TOKEN
+        ? `✅ Presente (${CLOVER_API_TOKEN.substring(0, 10)}...)`
+        : "❌ FALTANTE"
     );
-    console.log("PUBLIC_BASE_URL:", PUBLIC_BASE_URL);
+    console.log("   PUBLIC_BASE_URL:", PUBLIC_BASE_URL);
 
-    // Validar variables de entorno
     if (!CLOVER_API_TOKEN || !CLOVER_MID) {
-      console.error("Faltan variables de entorno críticas");
+      console.error("❌ Variables de entorno críticas faltantes");
       return corsResponse(
         {
           error: "Configuración del servidor incompleta",
-          details: "Faltan CLOVER_API_TOKEN o CLOVER_MID",
+          details: {
+            CLOVER_MID: !CLOVER_MID ? "Faltante" : "OK",
+            CLOVER_API_TOKEN: !CLOVER_API_TOKEN ? "Faltante" : "OK",
+          },
         },
         500,
         allow
@@ -106,26 +148,33 @@ export async function POST(req: Request) {
 
     // Validar body del request
     if (!body.amount || isNaN(Number(body.amount))) {
+      console.error("❌ Amount inválido:", body.amount);
       return corsResponse(
         {
           error: "Datos inválidos",
-          details: "Se requiere un 'amount' válido",
+          details: "Se requiere un 'amount' numérico válido",
+          received: body.amount,
         },
         400,
         allow
       );
     }
 
-    // Crear payload para Clover
+    const amountInCents = Math.round(Number(body.amount) * 100);
+    console.log("💰 Amount convertido a centavos:", amountInCents);
+
+    // Crear payload para Clover con estructura completa
     const payload = {
       customer: {
-        // Puedes agregar email o phone opcionalmente aquí
+        // Agregar email/phone si están disponibles
+        ...(body.email && { email: body.email }),
+        ...(body.phone && { phone: body.phone }),
       },
       shoppingCart: {
         lineItems: [
           {
             name: body.referenceId || `Order-${Date.now()}`,
-            price: Math.round(Number(body.amount) * 100), // Clover espera centavos
+            price: amountInCents,
             unitQty: 1,
           },
         ],
@@ -139,80 +188,186 @@ export async function POST(req: Request) {
     const CLOVER_HCO_URL =
       "https://api.clover.com/invoicingcheckoutservice/v1/checkouts";
 
-    console.log("Payload enviado a Clover:", JSON.stringify(payload, null, 2));
-    console.log("Endpoint de Clover:", CLOVER_HCO_URL);
-
-    // Hacer request a Clover API
-    const response = await fetch(CLOVER_HCO_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${CLOVER_API_TOKEN}`,
-        "X-Clover-Merchant-Id": CLOVER_MID,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+    console.log("📤 Enviando request a Clover:");
+    console.log("   URL:", CLOVER_HCO_URL);
+    console.log("   Payload:", JSON.stringify(payload, null, 2));
+    console.log("   Headers:", {
+      Authorization: `Bearer ${CLOVER_API_TOKEN.substring(0, 10)}...`,
+      "X-Clover-Merchant-Id": CLOVER_MID,
+      "Content-Type": "application/json",
     });
 
-    console.log("Respuesta de Clover - Status:", response.status);
-    console.log(
-      "Respuesta de Clover - Headers:",
-      Object.fromEntries(response.headers.entries())
-    );
+    // Hacer request a Clover API con timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
 
-    // Procesar respuesta de Clover
-    let data: CloverCheckoutResponse | null = null;
-    let raw: string | null = null;
-
-    if (response.status !== 204) {
-      raw = await response.text();
-      console.log("Raw response from Clover:", raw);
-
-      try {
-        data = JSON.parse(raw);
-        console.log("JSON parseado correctamente");
-      } catch (jsonError) {
-        console.error("Error parseando JSON de Clover:", jsonError);
-        return corsResponse(
-          {
-            error: "Respuesta inválida del servidor de pagos",
-            details: raw,
-          },
-          500,
-          allow
-        );
-      }
-    } else {
-      console.log("Respuesta 204 - Sin contenido");
+    let cloverResponse;
+    try {
+      cloverResponse = await fetch(CLOVER_HCO_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${CLOVER_API_TOKEN}`,
+          "X-Clover-Merchant-Id": CLOVER_MID,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      console.error("❌ Error en fetch a Clover:", fetchError);
+      return corsResponse(
+        {
+          error: "Error conectando con Clover",
+          details:
+            fetchError instanceof Error ? fetchError.message : "Unknown error",
+          type:
+            fetchError instanceof Error && fetchError.name === "AbortError"
+              ? "timeout"
+              : "network",
+        },
+        500,
+        allow
+      );
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    // Verificar si la respuesta de Clover indica error
-    if (!response.ok) {
-      console.error("Error de Clover API:", response.status, data);
+    console.log("📡 Respuesta de Clover recibida:");
+    console.log("   Status:", cloverResponse.status);
+    console.log("   Status Text:", cloverResponse.statusText);
+    console.log(
+      "   Headers:",
+      Object.fromEntries(cloverResponse.headers.entries())
+    );
+
+    // Manejar respuesta de Clover
+    let responseData: CloverCheckoutResponse | null = null;
+    let rawResponse: string = "";
+
+    // Clover puede devolver 201, 200, o 204 para éxito
+    if (cloverResponse.status !== 204) {
+      rawResponse = await cloverResponse.text();
+      console.log("📄 Raw response de Clover:", rawResponse);
+
+      if (rawResponse) {
+        try {
+          responseData = JSON.parse(rawResponse);
+          console.log(
+            "✅ Response parseado como JSON:",
+            JSON.stringify(responseData, null, 2)
+          );
+        } catch (jsonError) {
+          console.error("❌ Error parseando JSON de Clover:", jsonError);
+
+          // Si no es JSON pero el status es OK, podría ser una URL directa
+          if (cloverResponse.ok && rawResponse.startsWith("http")) {
+            console.log("📎 Respuesta parece ser una URL directa");
+            responseData = { href: rawResponse };
+          } else {
+            return corsResponse(
+              {
+                error: "Respuesta inválida del servidor de pagos",
+                details: rawResponse.substring(0, 500),
+                status: cloverResponse.status,
+              },
+              500,
+              allow
+            );
+          }
+        }
+      }
+    } else {
+      console.log(
+        "ℹ️ Respuesta 204 - Sin contenido (esto es inusual para checkout creation)"
+      );
+
+      // Si es 204, verificar si hay una URL en los headers
+      const locationHeader = cloverResponse.headers.get("location");
+      if (locationHeader) {
+        console.log("📍 Location header encontrado:", locationHeader);
+        responseData = { href: locationHeader };
+      }
+    }
+
+    // Verificar si la respuesta indica error
+    if (!cloverResponse.ok) {
+      console.error("❌ Error de Clover API:", {
+        status: cloverResponse.status,
+        data: responseData,
+        raw: rawResponse.substring(0, 500),
+      });
+
       return corsResponse(
         {
           error: "Error del servidor de pagos",
-          status: response.status,
-          details: data || raw,
+          status: cloverResponse.status,
+          statusText: cloverResponse.statusText,
+          details: responseData || rawResponse.substring(0, 500),
+          debug: {
+            merchantId: CLOVER_MID,
+            timestamp: new Date().toISOString(),
+          },
         },
-        response.status,
+        cloverResponse.status,
         allow
       );
     }
 
-    // Extraer URL de checkout de múltiples ubicaciones posibles
-    const checkoutUrl =
-      data?.checkoutPageUrl || data?.href || data?._links?.checkout?.href;
+    // Buscar la URL del checkout en múltiples ubicaciones posibles
+    console.log("🔍 Buscando URL de checkout en la respuesta...");
 
-    console.log("Checkout URL extraída:", checkoutUrl);
+    let checkoutUrl: string | undefined;
 
-    // Validar que se obtuvo una URL válida
+    // Lista de posibles paths donde puede estar la URL
+    const possiblePaths = [
+      responseData?.href,
+      responseData?.checkoutPageUrl,
+      responseData?.checkout_url,
+      responseData?.session?.checkout_url,
+      responseData?.session?.href,
+      responseData?._links?.checkout?.href,
+      responseData?._links?.self?.href,
+    ];
+
+    console.log("🔍 Paths evaluados:", possiblePaths);
+
+    // Encontrar la primera URL válida
+    checkoutUrl = possiblePaths.find(
+      (url) => url && typeof url === "string" && url.startsWith("http")
+    );
+
+    console.log("🔗 Checkout URL encontrada:", checkoutUrl || "NO ENCONTRADA");
+
+    // Si aún no tenemos URL, intentar construirla si tenemos un ID
+    if (!checkoutUrl && (responseData?.id || responseData?.checkoutSessionId)) {
+      const sessionId = responseData.id || responseData.checkoutSessionId;
+      console.log("🔨 Intentando construir URL con session ID:", sessionId);
+
+      // URL pattern de Clover Hosted Checkout
+      checkoutUrl = `https://sandbox.dev.clover.com/invoicingcheckoutsession/${sessionId}`;
+      console.log("🔨 URL construida:", checkoutUrl);
+    }
+
+    // Validar que tenemos una URL
     if (!checkoutUrl) {
-      console.error("No se pudo extraer URL de checkout de:", data);
+      console.error("❌ No se pudo obtener URL de checkout");
+      console.error(
+        "   Response data completa:",
+        JSON.stringify(responseData, null, 2)
+      );
+
       return corsResponse(
         {
           error: "No se pudo obtener URL de pago",
           details: "El servidor de pagos no devolvió una URL válida",
-          rawData: process.env.NODE_ENV === "development" ? data : undefined,
+          debug: {
+            responseReceived: !!responseData,
+            responseKeys: responseData ? Object.keys(responseData) : [],
+            rawResponse: rawResponse.substring(0, 200),
+            merchantId: CLOVER_MID,
+            timestamp: new Date().toISOString(),
+          },
         },
         500,
         allow
@@ -220,33 +375,49 @@ export async function POST(req: Request) {
     }
 
     // Preparar respuesta exitosa
-    const result = {
+    const successResult = {
       success: true,
       message: "Checkout creado exitosamente",
       checkoutPageUrl: checkoutUrl,
       referenceId: body.referenceId,
       amount: body.amount,
-      // Incluir datos raw solo en desarrollo para debugging
-      ...(process.env.NODE_ENV === "development" && { raw: data }),
+      sessionId: responseData?.id || responseData?.checkoutSessionId,
+      timestamp: new Date().toISOString(),
+      // Incluir datos raw solo en desarrollo
+      ...(process.env.NODE_ENV === "development" && {
+        raw: responseData,
+        debug: {
+          merchantId: CLOVER_MID,
+          environment: checkoutUrl.includes("sandbox")
+            ? "sandbox"
+            : "production",
+        },
+      }),
     };
 
-    console.log("Enviando resultado exitoso:", result);
-    return corsResponse(result, 200, allow);
+    console.log("✅ Enviando respuesta exitosa:", successResult);
+    return corsResponse(successResult, 200, allow);
   } catch (error: unknown) {
-    console.error("Error completo en el handler:", error);
+    console.error("💥 Error no manejado en el handler:", error);
     console.error(
-      "Stack trace:",
+      "💥 Stack trace:",
       error instanceof Error ? error.stack : "No stack available"
     );
 
     const errorMessage =
-      error instanceof Error ? error.message : "Error interno del servidor";
+      error instanceof Error ? error.message : "Error interno desconocido";
 
     return corsResponse(
       {
         error: "Error interno del servidor",
         message: errorMessage,
         timestamp: new Date().toISOString(),
+        debug:
+          process.env.NODE_ENV === "development"
+            ? {
+                stack: error instanceof Error ? error.stack : undefined,
+              }
+            : undefined,
       },
       500,
       "*"
