@@ -72,13 +72,18 @@ export async function POST(req: Request) {
 
   try {
     const origin = req.headers.get("origin") || "NO_ORIGIN";
-    const allow = ALLOWED_ORIGINS.some(
-      (allowed) =>
-        allowed === origin ||
-        (allowed.includes("*") && origin.includes("vercel.app"))
-    )
-      ? origin
-      : "*";
+
+    // Para debugging, temporalmente permitir cualquier origen
+    const allow = "*"; // TEMPORAL - cambiar después de debugging
+
+    /*
+    // Código para producción (activar después de debugging):
+    const allow = ALLOWED_ORIGINS.some(allowed => 
+      allowed === "*" || 
+      allowed === origin || 
+      (allowed.includes("*") && origin.includes("vercel.app"))
+    ) ? origin : "*";
+    */
 
     console.log("📍 Origin detectado:", origin);
     console.log("✅ CORS permitido:", allow);
