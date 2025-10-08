@@ -176,8 +176,8 @@ export async function POST(req: Request) {
         ],
       },
       redirectUrls: {
-        success: `${PUBLIC_BASE_URL}/checkout/success`,
-        failure: `${PUBLIC_BASE_URL}/checkout/failure`,
+        success: `${PUBLIC_BASE_URL}/api/clover/redirect?status=success`,
+        failure: `${PUBLIC_BASE_URL}/api/clover/redirect?status=failure`,
       },
     };
 
