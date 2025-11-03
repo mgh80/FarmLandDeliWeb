@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 interface OrderData {
@@ -10,7 +10,7 @@ interface OrderData {
   total: number;
 }
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationInner() {
   const searchParams = useSearchParams();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +22,6 @@ export default function OrderConfirmationPage() {
       try {
         const transId = searchParams.get("transId");
         const referenceId = searchParams.get("referenceId");
-
         const orderNumber = searchParams.get("orderNumber");
         const total = searchParams.get("total");
         const pointsEarned = searchParams.get("pointsEarned");
@@ -34,7 +33,7 @@ export default function OrderConfirmationPage() {
           return;
         }
 
-        // Si ya viene con orderNumber desde el redirect (modo local)
+        // ✅ Modo local: datos ya llegan listos
         if (orderNumber && total && pointsEarned && status === "paid") {
           setOrderData({
             status: "paid",
@@ -48,20 +47,13 @@ export default function OrderConfirmationPage() {
 
         console.log("🔍 Verificando pago...", { transId, referenceId });
 
-        // Intentar primero con el endpoint de verificación normal
-        let data;
-        if (transId) {
-          const response = await fetch(
-            `/api/authorize/verify-payment?transId=${transId}`
-          );
-          data = await response.json();
-        } else {
-          // Si solo tenemos referenceId, usar el endpoint de verificación simple
-          const response = await fetch(
-            `/api/authorize/check-payment-status?referenceId=${referenceId}`
-          );
-          data = await response.json();
-        }
+        // ✅ Verificación remota
+        const endpoint = transId
+          ? `/api/authorize/verify-payment?transId=${transId}`
+          : `/api/authorize/verify-payment?referenceId=${referenceId}`;
+
+        const response = await fetch(endpoint);
+        const data = await response.json();
 
         console.log("📦 Datos recibidos:", data);
 
@@ -71,16 +63,15 @@ export default function OrderConfirmationPage() {
           return;
         }
 
-        if (data.status === "paid" && data.found !== false) {
+        if (data.status === "paid") {
           setOrderData(data);
           setLoading(false);
 
-          // Iniciar countdown para redirección a la app
+          // Redirección a la app móvil
           const interval = setInterval(() => {
             setCountdown((prev) => {
               if (prev <= 1) {
                 clearInterval(interval);
-                // Redirigir a la app móvil
                 window.location.href = `farmlanddeli://order-confirmation?orderNumber=${data.orderNumber}&total=${data.total}&pointsEarned=${data.pointsEarned}&status=paid`;
                 return 0;
               }
@@ -89,12 +80,6 @@ export default function OrderConfirmationPage() {
           }, 1000);
 
           return () => clearInterval(interval);
-        } else if (data.status === "pending" || data.found === false) {
-          // El pago está pendiente, mostrar mensaje
-          setError(
-            "Tu pago está siendo procesado. Por favor espera unos momentos y recarga esta página."
-          );
-          setLoading(false);
         } else {
           setError("El pago aún no ha sido confirmado");
           setLoading(false);
@@ -114,6 +99,8 @@ export default function OrderConfirmationPage() {
       window.location.href = `farmlanddeli://order-confirmation?orderNumber=${orderData.orderNumber}&total=${orderData.total}&pointsEarned=${orderData.pointsEarned}&status=paid`;
     }
   };
+
+  // =================== UI ===================
 
   if (loading) {
     return (
@@ -150,7 +137,6 @@ export default function OrderConfirmationPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-        {/* Icono de éxito */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
             <svg
@@ -175,127 +161,56 @@ export default function OrderConfirmationPage() {
           </p>
         </div>
 
-        {/* Detalles de la orden */}
         <div className="space-y-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center mb-3">
-              <svg
-                className="w-5 h-5 text-gray-500 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <span className="text-sm text-gray-600">Número de Orden</span>
-            </div>
+            <span className="text-sm text-gray-600 block mb-1">
+              Número de Orden
+            </span>
             <p className="text-xl font-bold text-gray-800">
               {orderData?.orderNumber}
             </p>
           </div>
 
           <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center mb-3">
-              <svg
-                className="w-5 h-5 text-gray-500 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <span className="text-sm text-gray-600">Total Pagado</span>
-            </div>
+            <span className="text-sm text-gray-600 block mb-1">
+              Total Pagado
+            </span>
             <p className="text-xl font-bold text-gray-800">
-              $
-              {orderData?.total
-                ? parseFloat(orderData.total.toString()).toFixed(2)
-                : "0.00"}
+              ${orderData?.total.toFixed(2)}
             </p>
           </div>
 
           <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-            <div className="flex items-center mb-3">
-              <svg
-                className="w-5 h-5 text-orange-500 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-                />
-              </svg>
-              <span className="text-sm text-orange-700">Puntos Ganados</span>
-            </div>
+            <span className="text-sm text-orange-700 block mb-1">
+              Puntos Ganados
+            </span>
             <p className="text-xl font-bold text-orange-600">
               +{orderData?.pointsEarned} puntos
             </p>
           </div>
         </div>
 
-        {/* Info box */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <svg
-              className="w-5 h-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <p className="text-sm text-blue-700">
-              Recibirás un correo de confirmación con los detalles de tu orden.
-            </p>
-          </div>
-        </div>
-
-        {/* Botón para abrir la app */}
         <button
           onClick={handleOpenApp}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg transition-colors mb-3 flex items-center justify-center"
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg transition-colors mb-3"
         >
-          <svg
-            className="w-5 h-5 mr-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"
-            />
-          </svg>
           Abrir Farm Land Deli App
         </button>
 
-        {/* Countdown */}
         <p className="text-center text-sm text-gray-500">
           Redirigiendo automáticamente en {countdown} segundo
           {countdown !== 1 ? "s" : ""}...
         </p>
       </div>
     </div>
+  );
+}
+
+// ✅ Este componente se renderiza dentro de Suspense
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={<p className="text-center mt-10">Cargando...</p>}>
+      <OrderConfirmationInner />
+    </Suspense>
   );
 }
