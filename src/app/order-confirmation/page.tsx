@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 interface OrderData {
@@ -10,7 +10,7 @@ interface OrderData {
   total: number;
 }
 
-function OrderConfirmationInner() {
+export default function OrderConfirmationPage() {
   const searchParams = useSearchParams();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,41 +20,22 @@ function OrderConfirmationInner() {
   useEffect(() => {
     const verifyAndCreateOrder = async () => {
       try {
-        const transId = searchParams.get("transId");
         const referenceId = searchParams.get("referenceId");
-        const orderNumber = searchParams.get("orderNumber");
-        const total = searchParams.get("total");
-        const pointsEarned = searchParams.get("pointsEarned");
-        const status = searchParams.get("status");
 
-        if (!transId && !referenceId && !orderNumber) {
+        if (!referenceId) {
           setError("No se encontró información de la transacción");
           setLoading(false);
           return;
         }
 
-        // ✅ Modo local: datos ya llegan listos
-        if (orderNumber && total && pointsEarned && status === "paid") {
-          setOrderData({
-            status: "paid",
-            orderNumber,
-            pointsEarned: parseInt(pointsEarned, 10),
-            total: parseFloat(total),
-          });
-          setLoading(false);
-          return;
-        }
+        console.log("🔍 Verificando pago...", { referenceId });
 
-        console.log("🔍 Verificando pago...", { transId, referenceId });
+        const response = await fetch(
+          `/api/authorize/check-payment-status?referenceId=${referenceId}`,
+          { method: "GET" }
+        );
 
-        // ✅ Verificación remota
-        const endpoint = transId
-          ? `/api/authorize/verify-payment?transId=${transId}`
-          : `/api/authorize/verify-payment?referenceId=${referenceId}`;
-
-        const response = await fetch(endpoint);
         const data = await response.json();
-
         console.log("📦 Datos recibidos:", data);
 
         if (data.error) {
@@ -63,23 +44,46 @@ function OrderConfirmationInner() {
           return;
         }
 
-        if (data.status === "paid") {
+        // ✅ Pago completado
+        if (data.status === "paid" && data.found !== false) {
           setOrderData(data);
           setLoading(false);
+          iniciarCountdown(data);
+        }
+        // ⏳ Pago pendiente: iniciar polling
+        else if (data.status === "pending" || data.found === false) {
+          setError("Procesando tu pago, por favor espera...");
 
-          // Redirección a la app móvil
-          const interval = setInterval(() => {
-            setCountdown((prev) => {
-              if (prev <= 1) {
-                clearInterval(interval);
-                window.location.href = `farmlanddeli://order-confirmation?orderNumber=${data.orderNumber}&total=${data.total}&pointsEarned=${data.pointsEarned}&status=paid`;
-                return 0;
+          const pollInterval = setInterval(async () => {
+            try {
+              const pollResponse = await fetch(
+                `/api/authorize/check-payment-status?referenceId=${referenceId}`,
+                { method: "GET" }
+              );
+              const pollData = await pollResponse.json();
+
+              if (pollData.status === "paid" && pollData.found) {
+                clearInterval(pollInterval);
+                setOrderData(pollData);
+                setError(null);
+                setLoading(false);
+                iniciarCountdown(pollData);
               }
-              return prev - 1;
-            });
-          }, 1000);
+            } catch (pollError) {
+              console.error("Error en polling:", pollError);
+            }
+          }, 2000);
 
-          return () => clearInterval(interval);
+          // ⏰ Limpiar polling tras 30s
+          setTimeout(() => {
+            clearInterval(pollInterval);
+            if (!orderData) {
+              setError(
+                "Tiempo de verificación agotado. Revisa tu correo para la confirmación."
+              );
+              setLoading(false);
+            }
+          }, 30000);
         } else {
           setError("El pago aún no ha sido confirmado");
           setLoading(false);
@@ -91,6 +95,19 @@ function OrderConfirmationInner() {
       }
     };
 
+    const iniciarCountdown = (data: OrderData) => {
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            window.location.href = `farmlanddeli://order-confirmation?orderNumber=${data.orderNumber}&total=${data.total}&pointsEarned=${data.pointsEarned}&status=paid`;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    };
+
     verifyAndCreateOrder();
   }, [searchParams]);
 
@@ -100,8 +117,9 @@ function OrderConfirmationInner() {
     }
   };
 
-  // =================== UI ===================
-
+  // =============================
+  // 🌀 Cargando
+  // =============================
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
@@ -116,6 +134,9 @@ function OrderConfirmationInner() {
     );
   }
 
+  // =============================
+  // ❌ Error
+  // =============================
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
@@ -134,9 +155,13 @@ function OrderConfirmationInner() {
     );
   }
 
+  // =============================
+  // ✅ Pago exitoso
+  // =============================
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+        {/* Icono de éxito */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">
             <svg
@@ -161,38 +186,50 @@ function OrderConfirmationInner() {
           </p>
         </div>
 
+        {/* Detalles de la orden */}
         <div className="space-y-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-4">
-            <span className="text-sm text-gray-600 block mb-1">
-              Número de Orden
-            </span>
+            <div className="flex items-center mb-3">
+              <span className="text-sm text-gray-600">Número de Orden</span>
+            </div>
             <p className="text-xl font-bold text-gray-800">
               {orderData?.orderNumber}
             </p>
           </div>
 
           <div className="bg-gray-50 rounded-lg p-4">
-            <span className="text-sm text-gray-600 block mb-1">
-              Total Pagado
-            </span>
+            <div className="flex items-center mb-3">
+              <span className="text-sm text-gray-600">Total Pagado</span>
+            </div>
             <p className="text-xl font-bold text-gray-800">
-              ${orderData?.total.toFixed(2)}
+              $
+              {orderData?.total
+                ? parseFloat(orderData.total.toString()).toFixed(2)
+                : "0.00"}
             </p>
           </div>
 
           <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-            <span className="text-sm text-orange-700 block mb-1">
-              Puntos Ganados
-            </span>
+            <div className="flex items-center mb-3">
+              <span className="text-sm text-orange-700">Puntos Ganados</span>
+            </div>
             <p className="text-xl font-bold text-orange-600">
               +{orderData?.pointsEarned} puntos
             </p>
           </div>
         </div>
 
+        {/* Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-700 text-center">
+            Recibirás un correo de confirmación con los detalles de tu orden.
+          </p>
+        </div>
+
+        {/* Botón abrir app */}
         <button
           onClick={handleOpenApp}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg transition-colors mb-3"
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg transition-colors mb-3 flex items-center justify-center"
         >
           Abrir Farm Land Deli App
         </button>
@@ -203,14 +240,5 @@ function OrderConfirmationInner() {
         </p>
       </div>
     </div>
-  );
-}
-
-// ✅ Este componente se renderiza dentro de Suspense
-export default function OrderConfirmationPage() {
-  return (
-    <Suspense fallback={<p className="text-center mt-10">Cargando...</p>}>
-      <OrderConfirmationInner />
-    </Suspense>
   );
 }

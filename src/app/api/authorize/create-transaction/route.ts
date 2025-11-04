@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import xml2js from "xml2js";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function POST(req: Request) {
   try {
@@ -18,6 +24,11 @@ export async function POST(req: Request) {
         ? "https://apitest.authorize.net/xml/v1/request.api"
         : "https://api.authorize.net/xml/v1/request.api";
 
+    // ✅ Definir URL base explícita
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL ||
+      "https://farm-land-deli-web.vercel.app";
+
     // =============================
     // 🔹 Construir XML correctamente
     // =============================
@@ -31,10 +42,6 @@ export async function POST(req: Request) {
         transactionRequest: {
           transactionType: "authCaptureTransaction",
           amount: parseFloat(amount).toFixed(2),
-          order: {
-            invoiceNumber: referenceId,
-            description: "Farm Land Deli Order",
-          },
         },
         hostedPaymentSettings: {
           setting: [
@@ -42,8 +49,8 @@ export async function POST(req: Request) {
               settingName: "hostedPaymentReturnOptions",
               settingValue: JSON.stringify({
                 showReceipt: false,
-                url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/authorize/verify-payment`,
-                urlText: "Return to Farm Land Deli",
+                url: `${baseUrl}/order-confirmation?referenceId=${referenceId}`,
+                urlText: "Continue",
               }),
             },
           ],
@@ -66,18 +73,12 @@ export async function POST(req: Request) {
     });
 
     const xmlText = await response.text();
+    console.log("\x1b[35m📥 Respuesta completa:\x1b[0m\n", xmlText);
 
-    console.log("\x1b[35m📥 Respuesta cruda:\x1b[0m\n", xmlText.slice(0, 500));
-
-    // =============================
-    // 🔹 Detectar error HTML
-    // =============================
     if (xmlText.startsWith("<!DOCTYPE") || xmlText.startsWith("<html")) {
-      console.error("\x1b[31m❌ ERROR: Authorize.Net devolvió HTML.\x1b[0m");
       return NextResponse.json(
         {
-          error:
-            "Authorize.Net devolvió HTML (verifica tus credenciales o endpoint)",
+          error: "Authorize.Net devolvió HTML. Verifica tus credenciales.",
           htmlSnippet: xmlText.slice(0, 300),
         },
         { status: 500 }
@@ -87,41 +88,19 @@ export async function POST(req: Request) {
     // =============================
     // 🔹 Parsear XML correctamente
     // =============================
-    let parsed: Record<string, unknown> = {};
+    const parsed = await xml2js.parseStringPromise(xmlText, {
+      explicitArray: false,
+    });
 
-    try {
-      parsed = await xml2js.parseStringPromise(xmlText, {
-        explicitArray: false,
-      });
-    } catch (parseErr) {
-      console.error("\x1b[31m❌ Error parseando XML:\x1b[0m", parseErr);
-      return NextResponse.json(
-        { error: "Error parseando XML", xmlSnippet: xmlText.slice(0, 500) },
-        { status: 500 }
-      );
-    }
-
-    type AuthorizeResponse = {
-      getHostedPaymentPageResponse?: {
-        token?: string;
-      };
-      token?: string;
-    };
-
-    const parsedResponse = parsed as AuthorizeResponse;
     const token =
-      parsedResponse.getHostedPaymentPageResponse?.token ||
-      parsedResponse.token ||
-      null;
+      parsed.getHostedPaymentPageResponse?.token || parsed.token || null;
 
     if (!token) {
-      console.error(
-        "\x1b[31m❌ No se recibió token válido en la respuesta.\x1b[0m"
-      );
+      console.error("❌ No se recibió token válido.");
+      console.error("Respuesta parseada:", JSON.stringify(parsed, null, 2));
       return NextResponse.json(
         {
-          error:
-            "No se recibió token válido de Authorize.Net (revisa las credenciales o el formato del XML)",
+          error: "No se recibió token válido de Authorize.Net",
           parsed,
         },
         { status: 400 }
@@ -129,19 +108,61 @@ export async function POST(req: Request) {
     }
 
     console.log("\x1b[32m✅ Token recibido:\x1b[0m", token);
+
+    // =============================
+    // 🔹 Crear orden preliminar en Supabase
+    // =============================
+    try {
+      const { data: users } = await supabase
+        .from("Users")
+        .select("id")
+        .order("dateCreated", { ascending: false })
+        .limit(1);
+
+      const user = users?.[0];
+
+      if (user) {
+        const { error: insertError } = await supabase.from("Orders").insert({
+          ordernumber: referenceId,
+          userid: user.id,
+          price: amount,
+          date: new Date().toISOString(),
+          statusid: 0, // pendiente
+          paymentreference: referenceId,
+          orderstatus: false,
+          // ❌ eliminado: createdat (no existe en la tabla)
+        });
+
+        if (insertError) {
+          console.error("⚠️ Error al crear orden preliminar:", insertError);
+        } else {
+          console.log("🧾 Orden preliminar creada correctamente:", referenceId);
+        }
+      } else {
+        console.warn("⚠️ No se encontró usuario, no se creó orden preliminar.");
+      }
+    } catch (dbErr) {
+      console.error("💥 Error creando orden preliminar:", dbErr);
+    }
+
+    // =============================
+    // 🔹 Construir respuesta final
+    // =============================
+    const paymentEndpoint =
+      process.env.AUTHORIZE_ENV === "sandbox"
+        ? "https://test.authorize.net/payment/payment"
+        : "https://accept.authorize.net/payment/payment";
+
     console.log("\x1b[36m====================\x1b[0m");
 
     return NextResponse.json({
       success: true,
       token,
-      checkoutUrl: `https://accept.authorize.net/payment/payment/${token}`,
+      checkoutUrl: paymentEndpoint,
       referenceId,
     });
   } catch (error: unknown) {
-    console.error(
-      "\x1b[31m💥 Error general en create-transaction:\x1b[0m",
-      error
-    );
+    console.error("💥 Error general en create-transaction:", error);
     return NextResponse.json(
       { error: "Error general creando transacción", details: String(error) },
       { status: 500 }
