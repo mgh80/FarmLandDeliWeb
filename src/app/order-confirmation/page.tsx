@@ -12,7 +12,7 @@ export default function Page() {
         <div className="min-h-screen flex items-center justify-center bg-orange-50">
           <div className="text-center text-gray-700">
             <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-orange-500 mx-auto mb-4"></div>
-            <p>Cargando confirmación de orden...</p>
+            <p>Loading order confirmation...</p>
           </div>
         </div>
       }

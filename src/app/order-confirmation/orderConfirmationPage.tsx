@@ -23,12 +23,12 @@ export default function OrderConfirmationPage() {
         const referenceId = searchParams.get("referenceId");
 
         if (!referenceId) {
-          setError("No se encontró información de la transacción");
+          setError("Transaction information not found");
           setLoading(false);
           return;
         }
 
-        console.log("🔍 Verificando pago...", { referenceId });
+        console.log("🔍 Checking payment...", { referenceId });
 
         const response = await fetch(
           `/api/authorize/check-payment-status?referenceId=${referenceId}`,
@@ -36,7 +36,7 @@ export default function OrderConfirmationPage() {
         );
 
         const data = await response.json();
-        console.log("📦 Datos recibidos:", data);
+        console.log("📦 Data received:", data);
 
         if (data.error) {
           setError(data.error);
@@ -47,9 +47,9 @@ export default function OrderConfirmationPage() {
         if (data.status === "paid" && data.found !== false) {
           setOrderData(data);
           setLoading(false);
-          iniciarCountdown(data);
+          startCountdown(data);
         } else if (data.status === "pending" || data.found === false) {
-          setError("Procesando tu pago, por favor espera...");
+          setError("Processing your payment, please wait...");
 
           const pollInterval = setInterval(async () => {
             try {
@@ -64,10 +64,10 @@ export default function OrderConfirmationPage() {
                 setOrderData(pollData);
                 setError(null);
                 setLoading(false);
-                iniciarCountdown(pollData);
+                startCountdown(pollData);
               }
             } catch (pollError) {
-              console.error("Error en polling:", pollError);
+              console.error("Polling error:", pollError);
             }
           }, 2000);
 
@@ -75,23 +75,23 @@ export default function OrderConfirmationPage() {
             clearInterval(pollInterval);
             if (!orderData) {
               setError(
-                "Tiempo de verificación agotado. Revisa tu correo para la confirmación."
+                "Verification time expired. Please check your email for confirmation."
               );
               setLoading(false);
             }
           }, 30000);
         } else {
-          setError("El pago aún no ha sido confirmado");
+          setError("Payment has not been confirmed yet");
           setLoading(false);
         }
       } catch (err) {
-        console.error("💥 Error verificando pago:", err);
-        setError("Error al verificar el pago");
+        console.error("💥 Error verifying payment:", err);
+        setError("Error verifying payment");
         setLoading(false);
       }
     };
 
-    const iniciarCountdown = (data: OrderData) => {
+    const startCountdown = (data: OrderData) => {
       const interval = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -119,9 +119,9 @@ export default function OrderConfirmationPage() {
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-orange-500 mx-auto mb-4"></div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Verificando pago...
+            Verifying payment...
           </h2>
-          <p className="text-gray-600">Por favor espera un momento</p>
+          <p className="text-gray-600">Please wait a moment</p>
         </div>
       </div>
     );
@@ -138,7 +138,7 @@ export default function OrderConfirmationPage() {
             onClick={() => (window.location.href = "/")}
             className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
           >
-            Volver al inicio
+            Back to Home
           </button>
         </div>
       </div>
@@ -165,23 +165,23 @@ export default function OrderConfirmationPage() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-green-600 mb-2">
-            ¡Pago Exitoso!
+            Payment Successful!
           </h1>
           <p className="text-gray-600">
-            Tu orden ha sido confirmada correctamente
+            Your order has been successfully confirmed
           </p>
         </div>
 
         <div className="space-y-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-1">Número de Orden</p>
+            <p className="text-sm text-gray-600 mb-1">Order Number</p>
             <p className="text-xl font-bold text-gray-800">
               {orderData?.orderNumber}
             </p>
           </div>
 
           <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-sm text-gray-600 mb-1">Total Pagado</p>
+            <p className="text-sm text-gray-600 mb-1">Total Paid</p>
             <p className="text-xl font-bold text-gray-800">
               $
               {orderData?.total
@@ -191,16 +191,16 @@ export default function OrderConfirmationPage() {
           </div>
 
           <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
-            <p className="text-sm text-orange-700 mb-1">Puntos Ganados</p>
+            <p className="text-sm text-orange-700 mb-1">Points Earned</p>
             <p className="text-xl font-bold text-orange-600">
-              +{orderData?.pointsEarned} puntos
+              +{orderData?.pointsEarned} points
             </p>
           </div>
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-700 text-center">
-            Recibirás un correo de confirmación con los detalles de tu orden.
+            You will receive a confirmation email with your order details.
           </p>
         </div>
 
@@ -208,11 +208,11 @@ export default function OrderConfirmationPage() {
           onClick={handleOpenApp}
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg transition-colors mb-3 flex items-center justify-center"
         >
-          Abrir Farm Land Deli App
+          Open Farm Land Deli App
         </button>
 
         <p className="text-center text-sm text-gray-500">
-          Redirigiendo automáticamente en {countdown} segundo
+          Redirecting automatically in {countdown} second
           {countdown !== 1 ? "s" : ""}...
         </p>
       </div>
