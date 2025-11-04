@@ -14,23 +14,24 @@ export async function POST(req: Request) {
       "\x1b[36m🚀 Iniciando creación de transacción Authorize.Net\x1b[0m"
     );
 
-    const { amount, referenceId } = await req.json();
+    const { amount, referenceId, productId, quantity } = await req.json();
 
     console.log("\x1b[33m💰 Monto recibido:\x1b[0m", amount);
     console.log("\x1b[33m🧾 Referencia:\x1b[0m", referenceId);
+    console.log("\x1b[33m📦 Producto:\x1b[0m", productId);
+    console.log("\x1b[33m🔢 Cantidad:\x1b[0m", quantity);
 
     const endpoint =
       process.env.AUTHORIZE_ENV === "sandbox"
         ? "https://apitest.authorize.net/xml/v1/request.api"
         : "https://api.authorize.net/xml/v1/request.api";
 
-    // ✅ Definir URL base explícita
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ||
       "https://farm-land-deli-web.vercel.app";
 
     // =============================
-    // 🔹 Construir XML correctamente
+    // 🔹 Crear XML para Authorize.Net
     // =============================
     const payload = {
       getHostedPaymentPageRequest: {
@@ -75,18 +76,8 @@ export async function POST(req: Request) {
     const xmlText = await response.text();
     console.log("\x1b[35m📥 Respuesta completa:\x1b[0m\n", xmlText);
 
-    if (xmlText.startsWith("<!DOCTYPE") || xmlText.startsWith("<html")) {
-      return NextResponse.json(
-        {
-          error: "Authorize.Net devolvió HTML. Verifica tus credenciales.",
-          htmlSnippet: xmlText.slice(0, 300),
-        },
-        { status: 500 }
-      );
-    }
-
     // =============================
-    // 🔹 Parsear XML correctamente
+    // 🔹 Parsear XML
     // =============================
     const parsed = await xml2js.parseStringPromise(xmlText, {
       explicitArray: false,
@@ -97,12 +88,8 @@ export async function POST(req: Request) {
 
     if (!token) {
       console.error("❌ No se recibió token válido.");
-      console.error("Respuesta parseada:", JSON.stringify(parsed, null, 2));
       return NextResponse.json(
-        {
-          error: "No se recibió token válido de Authorize.Net",
-          parsed,
-        },
+        { error: "No se recibió token válido de Authorize.Net" },
         { status: 400 }
       );
     }
@@ -112,41 +99,37 @@ export async function POST(req: Request) {
     // =============================
     // 🔹 Crear orden preliminar en Supabase
     // =============================
-    try {
-      const { data: users } = await supabase
-        .from("Users")
-        .select("id")
-        .order("dateCreated", { ascending: false })
-        .limit(1);
+    const { data: users } = await supabase
+      .from("Users")
+      .select("id")
+      .order("dateCreated", { ascending: false })
+      .limit(1);
 
-      const user = users?.[0];
+    const user = users?.[0];
 
-      if (user) {
-        const { error: insertError } = await supabase.from("Orders").insert({
-          ordernumber: referenceId,
-          userid: user.id,
-          price: amount,
-          date: new Date().toISOString(),
-          statusid: 0, // pendiente
-          paymentreference: referenceId,
-          orderstatus: false,
-          // ❌ eliminado: createdat (no existe en la tabla)
-        });
+    if (user) {
+      const { error: insertError } = await supabase.from("Orders").insert({
+        ordernumber: referenceId,
+        userid: user.id,
+        price: amount,
+        date: new Date().toISOString(),
+        statusid: 0, // Pendiente
+        paymentreference: referenceId,
+        orderstatus: false,
+        productid: productId || null,
+        quantity: quantity || 1,
+      });
 
-        if (insertError) {
-          console.error("⚠️ Error al crear orden preliminar:", insertError);
-        } else {
-          console.log("🧾 Orden preliminar creada correctamente:", referenceId);
-        }
-      } else {
-        console.warn("⚠️ No se encontró usuario, no se creó orden preliminar.");
-      }
-    } catch (dbErr) {
-      console.error("💥 Error creando orden preliminar:", dbErr);
+      if (insertError)
+        console.error("⚠️ Error al crear orden preliminar:", insertError);
+      else
+        console.log("🧾 Orden preliminar creada correctamente:", referenceId);
+    } else {
+      console.warn("⚠️ No se encontró usuario.");
     }
 
     // =============================
-    // 🔹 Construir respuesta final
+    // 🔹 Respuesta final
     // =============================
     const paymentEndpoint =
       process.env.AUTHORIZE_ENV === "sandbox"
