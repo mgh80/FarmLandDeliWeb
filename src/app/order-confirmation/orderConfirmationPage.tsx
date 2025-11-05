@@ -15,7 +15,6 @@ export default function OrderConfirmationPage() {
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     const verifyAndCreateOrder = async () => {
@@ -47,7 +46,6 @@ export default function OrderConfirmationPage() {
         if (data.status === "paid" && data.found !== false) {
           setOrderData(data);
           setLoading(false);
-          startCountdown(data);
         } else if (data.status === "pending" || data.found === false) {
           setError("Processing your payment, please wait...");
 
@@ -64,7 +62,6 @@ export default function OrderConfirmationPage() {
                 setOrderData(pollData);
                 setError(null);
                 setLoading(false);
-                startCountdown(pollData);
               }
             } catch (pollError) {
               console.error("Polling error:", pollError);
@@ -89,19 +86,6 @@ export default function OrderConfirmationPage() {
         setError("Error verifying payment");
         setLoading(false);
       }
-    };
-
-    const startCountdown = (data: OrderData) => {
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            window.location.href = `farmlanddeli://order-confirmation?orderNumber=${data.orderNumber}&total=${data.total}&pointsEarned=${data.pointsEarned}&status=paid`;
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     };
 
     verifyAndCreateOrder();
@@ -198,23 +182,12 @@ export default function OrderConfirmationPage() {
           </div>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-blue-700 text-center">
-            You will receive a confirmation email with your order details.
-          </p>
-        </div>
-
         <button
           onClick={handleOpenApp}
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg transition-colors mb-3 flex items-center justify-center"
         >
-          Open Farm Land Deli App
+          Return to Home
         </button>
-
-        <p className="text-center text-sm text-gray-500">
-          Redirecting automatically in {countdown} second
-          {countdown !== 1 ? "s" : ""}...
-        </p>
       </div>
     </div>
   );

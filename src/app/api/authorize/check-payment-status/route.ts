@@ -42,39 +42,44 @@ export async function GET(req: Request) {
     }
 
     // ==========================
-    // 🧾 Si ya está pagada
+    // 🧾 If already paid
     // ==========================
     if (existingOrder.statusid === 1) {
-      const pointsEarned = Math.floor(existingOrder.price);
+      const pointsEarned = Math.floor(parseFloat(existingOrder.price)); // ✅ Ensure numeric
+      console.log("✅ Order already paid — Points:", pointsEarned);
 
       return NextResponse.json({
         status: "paid",
         orderNumber: existingOrder.ordernumber,
         pointsEarned,
-        total: existingOrder.price,
+        total: parseFloat(existingOrder.price),
         found: true,
       });
     }
 
     // ==========================
-    // ⏱️ Si han pasado unos segundos, marcar como pagada
+    // ⏱️ After a few seconds, mark as paid
     // ==========================
     const orderAge = Date.now() - new Date(existingOrder.date).getTime();
 
     if (orderAge > 3000) {
-      const pointsEarned = Math.floor(existingOrder.price);
+      const totalAmount = parseFloat(existingOrder.price);
+      const pointsEarned = Math.floor(totalAmount); // ✅ 1 point = 1 dollar
+      console.log(
+        `💰 Total: $${totalAmount} → 🟢 ${pointsEarned} points to assign`
+      );
 
-      // 1️⃣ Marcar la orden como pagada
+      // 1️⃣ Update order as paid
       const { error: updateOrderError } = await supabase
         .from("Orders")
         .update({ statusid: 1 })
         .eq("paymentreference", referenceId);
 
       if (updateOrderError) {
-        console.error("⚠️ Error al actualizar orden:", updateOrderError);
+        console.error("⚠️ Error updating order:", updateOrderError);
       }
 
-      // 2️⃣ Actualizar puntos del usuario
+      // 2️⃣ Update user points
       const { data: userData, error: userError } = await supabase
         .from("Users")
         .select("points")
@@ -83,25 +88,29 @@ export async function GET(req: Request) {
 
       if (!userError && userData) {
         const newPoints = (userData.points || 0) + pointsEarned;
+        console.log(
+          `🏅 User current points: ${userData.points || 0} → New total: ${newPoints}`
+        );
+
         await supabase
           .from("Users")
           .update({ points: newPoints })
           .eq("id", existingOrder.userid);
       } else {
-        console.error("⚠️ Error al obtener puntos:", userError);
+        console.error("⚠️ Error fetching user points:", userError);
       }
 
       return NextResponse.json({
         status: "paid",
         orderNumber: existingOrder.ordernumber,
         pointsEarned,
-        total: existingOrder.price,
+        total: totalAmount,
         found: true,
       });
     }
 
     // ==========================
-    // 🕓 Si aún no se confirma el pago
+    // 🕓 If still processing
     // ==========================
     return NextResponse.json({
       status: "pending",
@@ -109,6 +118,7 @@ export async function GET(req: Request) {
       found: true,
     });
   } catch (err) {
+    console.error("💥 check-payment-status error:", err);
     return NextResponse.json(
       { error: "Internal server error", details: String(err) },
       { status: 500 }
