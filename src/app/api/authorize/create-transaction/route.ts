@@ -2,49 +2,65 @@ import { NextResponse } from "next/server";
 import xml2js from "xml2js";
 import { createClient } from "@supabase/supabase-js";
 
-// ==============================
-// 🔹 Tipos definidos
-// ==============================
-interface CartItem {
-  id: number;
-  name?: string;
-  price?: number;
-  quantity: number;
-}
-
-interface BodyData {
-  amount: number;
-  referenceId: string;
-  cartItems: CartItem[];
-  userId: string;
-}
-
-// ==============================
-// 🔹 Inicializar Supabase
-// ==============================
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function POST(req: Request) {
+// =======================================
+// 🔹 CONFIGURACIÓN CORS (sin "any")
+// =======================================
+const allowedOrigins = [
+  "https://farm-land-deli-app.vercel.app",
+  "https://farm-land-deli-web.vercel.app",
+  "http://localhost:3000", // 🔧 útil para desarrollo local
+];
+
+type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
+interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+// Helper CORS tipado
+function corsResponse(data: JsonObject, status = 200): NextResponse {
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "Access-Control-Allow-Origin": allowedOrigins.join(", "),
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
+// Manejar preflight OPTIONS
+export async function OPTIONS(): Promise<NextResponse> {
+  return corsResponse({}, 200);
+}
+
+// =======================================
+// 🔹 ENDPOINT PRINCIPAL POST
+// =======================================
+export async function POST(req: Request): Promise<NextResponse> {
   try {
-    // ==============================
-    // 🔹 Leer cuerpo del request
-    // ==============================
-    const body = (await req.json()) as BodyData;
+    console.log("\x1b[36m====================\x1b[0m");
+    console.log("\x1b[36m🚀 Creando transacción Authorize.Net\x1b[0m");
 
-    const { amount, referenceId, cartItems, userId } = body;
+    const body: {
+      amount: number;
+      referenceId: string;
+      cartItems?: { id: number; quantity: number }[];
+    } = await req.json();
 
-    if (!amount || !referenceId || !userId) {
-      return NextResponse.json(
-        {
-          error:
-            "Faltan parámetros obligatorios (amount, referenceId, userId).",
-        },
-        { status: 400 }
-      );
+    const { amount, referenceId, cartItems = [] } = body;
+
+    if (!amount || !referenceId) {
+      return corsResponse({ error: "Faltan parámetros obligatorios." }, 400);
     }
+
+    console.log("💰 Monto:", amount);
+    console.log("🧾 Referencia:", referenceId);
+    console.log("🛒 Carrito:", cartItems);
 
     // ==============================
     // 🔹 Configurar Authorize.Net
@@ -76,7 +92,7 @@ export async function POST(req: Request) {
               settingValue: JSON.stringify({
                 showReceipt: false,
                 url: `${baseUrl}/order-confirmation?referenceId=${referenceId}`,
-                urlText: "Continuar",
+                urlText: "Continue",
               }),
             },
           ],
@@ -88,9 +104,6 @@ export async function POST(req: Request) {
       payload
     );
 
-    // ==============================
-    // 🔹 Enviar solicitud a Authorize.Net
-    // ==============================
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/xml" },
@@ -101,18 +114,34 @@ export async function POST(req: Request) {
     const parsed = await xml2js.parseStringPromise(xmlText, {
       explicitArray: false,
     });
-    const token = parsed?.getHostedPaymentPageResponse?.token || null;
+    const token: string | null =
+      parsed?.getHostedPaymentPageResponse?.token || null;
 
     if (!token) {
-      console.error("❌ No se recibió token válido.");
-      return NextResponse.json(
+      return corsResponse(
         { error: "No se recibió token válido de Authorize.Net" },
-        { status: 400 }
+        400
       );
     }
 
+    console.log("✅ Token recibido:", token);
+
     // ==============================
-    // 🔹 Derivar productid y quantity desde cartItems
+    // 🔹 Obtener usuario actual
+    // ==============================
+    const { data: users } = await supabase
+      .from("Users")
+      .select("id")
+      .order("dateCreated", { ascending: false })
+      .limit(1);
+
+    const user = users?.[0];
+    if (!user) {
+      return corsResponse({ error: "Usuario no encontrado." }, 400);
+    }
+
+    // ==============================
+    // 🔹 Guardar producto y cantidad
     // ==============================
     let productid: number | null = null;
     let quantity: number | null = null;
@@ -120,9 +149,6 @@ export async function POST(req: Request) {
     if (Array.isArray(cartItems) && cartItems.length > 0) {
       productid = Number(cartItems[0].id);
       quantity = Number(cartItems[0].quantity);
-      console.log("✅ Producto a guardar en Orders:", { productid, quantity });
-    } else {
-      console.warn("⚠️ No llegaron cartItems válidos al backend");
     }
 
     // ==============================
@@ -132,7 +158,7 @@ export async function POST(req: Request) {
       .from("Orders")
       .insert({
         ordernumber: referenceId,
-        userid: userId,
+        userid: user.id,
         price: parseFloat(amount.toFixed(2)),
         date: new Date().toISOString(),
         statusid: 0,
@@ -145,15 +171,13 @@ export async function POST(req: Request) {
       .single();
 
     if (orderError) {
-      console.error("⚠️ Error al crear la orden:", orderError);
-    } else {
-      console.log("🧾 Orden creada:", order.id);
+      console.error("⚠️ Error al crear orden:", orderError);
     }
 
     // ==============================
-    // 🔹 Guardar productos en OrderIngredients
+    // 🔹 Guardar productos asociados
     // ==============================
-    if (order && Array.isArray(cartItems) && cartItems.length > 0) {
+    if (order && cartItems.length > 0) {
       const validItems = cartItems
         .filter((item) => item.id && item.quantity > 0)
         .map((item) => ({
@@ -163,28 +187,26 @@ export async function POST(req: Request) {
         }));
 
       if (validItems.length > 0) {
-        console.log("📦 Insertando productos:", validItems);
         const { error: itemsError } = await supabase
           .from("OrderIngredients")
           .insert(validItems);
-
         if (itemsError)
           console.error("⚠️ Error al guardar productos:", itemsError);
-        else console.log("✅ Productos guardados correctamente.");
       }
     }
 
     // ==============================
-    // 🔹 Responder al frontend
+    // 🔹 Devolver respuesta
     // ==============================
     const paymentEndpoint =
       process.env.AUTHORIZE_ENV === "sandbox"
         ? "https://test.authorize.net/payment/payment"
         : "https://accept.authorize.net/payment/payment";
 
+    console.log("✅ Transacción completada correctamente.");
     console.log("\x1b[36m====================\x1b[0m");
 
-    return NextResponse.json({
+    return corsResponse({
       success: true,
       token,
       checkoutUrl: paymentEndpoint,
@@ -192,9 +214,12 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("💥 Error general en create-transaction:", error);
-    return NextResponse.json(
-      { error: "General error creating transaction", details: String(error) },
-      { status: 500 }
+    return corsResponse(
+      {
+        error: "Error general creando transacción",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      500
     );
   }
 }
@@ -213,8 +238,11 @@ export async function POST(req: Request) {
 //   quantity: number;
 // }
 
-// interface UserRecord {
-//   id: string;
+// interface BodyData {
+//   amount: number;
+//   referenceId: string;
+//   cartItems: CartItem[];
+//   userId: string;
 // }
 
 // // ==============================
@@ -227,28 +255,19 @@ export async function POST(req: Request) {
 
 // export async function POST(req: Request) {
 //   try {
-//     console.log("\x1b[36m====================\x1b[0m");
-//     console.log("\x1b[36m🚀 Creando transacción Authorize.Net\x1b[0m");
-
 //     // ==============================
 //     // 🔹 Leer cuerpo del request
 //     // ==============================
-//     const body = await req.json();
-//     console.log("🧩 BODY COMPLETO RECIBIDO:", JSON.stringify(body, null, 2));
+//     const body = (await req.json()) as BodyData;
 
-//     const { amount, referenceId, cartItems } = body as {
-//       amount: number;
-//       referenceId: string;
-//       cartItems: CartItem[];
-//     };
+//     const { amount, referenceId, cartItems, userId } = body;
 
-//     console.log("💰 Monto:", amount);
-//     console.log("🧾 Referencia:", referenceId);
-//     console.log("🛒 Carrito recibido:", cartItems);
-
-//     if (!amount || !referenceId) {
+//     if (!amount || !referenceId || !userId) {
 //       return NextResponse.json(
-//         { error: "Faltan parámetros obligatorios." },
+//         {
+//           error:
+//             "Faltan parámetros obligatorios (amount, referenceId, userId).",
+//         },
 //         { status: 400 }
 //       );
 //     }
@@ -294,7 +313,6 @@ export async function POST(req: Request) {
 //     const xmlRequest = new xml2js.Builder({ headless: true }).buildObject(
 //       payload
 //     );
-//     console.log("📤 XML enviado:\n", xmlRequest);
 
 //     // ==============================
 //     // 🔹 Enviar solicitud a Authorize.Net
@@ -319,28 +337,6 @@ export async function POST(req: Request) {
 //       );
 //     }
 
-//     console.log("✅ Token recibido:", token);
-
-//     // ==============================
-//     // 🔹 Obtener usuario
-//     // ==============================
-//     const { data: users, error: userError } = await supabase
-//       .from("Users")
-//       .select("id")
-//       .order("dateCreated", { ascending: false })
-//       .limit(1);
-
-//     if (userError) console.error("⚠️ Error al obtener usuario:", userError);
-
-//     const user = (users?.[0] as UserRecord) || null;
-//     if (!user) {
-//       console.warn("⚠️ No se encontró usuario para registrar la orden.");
-//       return NextResponse.json(
-//         { error: "Usuario no encontrado." },
-//         { status: 400 }
-//       );
-//     }
-
 //     // ==============================
 //     // 🔹 Derivar productid y quantity desde cartItems
 //     // ==============================
@@ -348,35 +344,28 @@ export async function POST(req: Request) {
 //     let quantity: number | null = null;
 
 //     if (Array.isArray(cartItems) && cartItems.length > 0) {
-//       if (cartItems.length === 1) {
-//         productid = Number(cartItems[0].id);
-//         quantity = Number(cartItems[0].quantity);
-//       } else {
-//         // Si hay varios, toma el primero solo para compatibilidad con Orders
-//         productid = Number(cartItems[0].id);
-//         quantity = Number(cartItems[0].quantity);
-//       }
-
+//       productid = Number(cartItems[0].id);
+//       quantity = Number(cartItems[0].quantity);
 //       console.log("✅ Producto a guardar en Orders:", { productid, quantity });
 //     } else {
 //       console.warn("⚠️ No llegaron cartItems válidos al backend");
 //     }
 
 //     // ==============================
-//     // 🔹 Crear orden principal en Supabase
+//     // 🔹 Crear orden principal
 //     // ==============================
 //     const { data: order, error: orderError } = await supabase
 //       .from("Orders")
 //       .insert({
 //         ordernumber: referenceId,
-//         userid: user.id,
+//         userid: userId,
 //         price: parseFloat(amount.toFixed(2)),
 //         date: new Date().toISOString(),
 //         statusid: 0,
 //         paymentreference: referenceId,
 //         orderstatus: false,
-//         productid, // ✅ se guarda
-//         quantity, // ✅ se guarda
+//         productid,
+//         quantity,
 //       })
 //       .select("id")
 //       .single();
@@ -430,7 +419,7 @@ export async function POST(req: Request) {
 //   } catch (error) {
 //     console.error("💥 Error general en create-transaction:", error);
 //     return NextResponse.json(
-//       { error: "Error general creando transacción", details: String(error) },
+//       { error: "General error creating transaction", details: String(error) },
 //       { status: 500 }
 //     );
 //   }
