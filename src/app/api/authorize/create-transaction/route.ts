@@ -2,18 +2,24 @@ import { NextResponse } from "next/server";
 import xml2js from "xml2js";
 import { createClient } from "@supabase/supabase-js";
 
+// =======================================
+// 🔹 Inicializar Supabase
+// =======================================
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // =======================================
-// 🔹 CONFIGURACIÓN CORS (sin "any")
+// 🔹 CONFIGURACIÓN CORS (dinámica, correcta para Vercel)
+// =======================================
+// =======================================
+// 🔹 CONFIGURACIÓN CORS (dinámica, corregida para TS)
 // =======================================
 const allowedOrigins = [
   "https://farm-land-deli-app.vercel.app",
   "https://farm-land-deli-web.vercel.app",
-  "http://localhost:3000", // 🔧 útil para desarrollo local
+  "http://localhost:3000", // útil para desarrollo local
 ];
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
@@ -21,21 +27,42 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
-// Helper CORS tipado
-function corsResponse(data: JsonObject, status = 200): NextResponse {
-  return NextResponse.json(data, {
-    status,
-    headers: {
-      "Access-Control-Allow-Origin": allowedOrigins.join(", "),
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    },
-  });
+// Helper para respuesta CORS dinámica
+function corsResponse(
+  req: Request,
+  data: JsonObject,
+  status = 200
+): NextResponse {
+  const origin = req.headers.get("origin") ?? "";
+  const allowedOrigin = allowedOrigins.includes(origin)
+    ? origin
+    : allowedOrigins[0]; // fallback seguro
+
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+  };
+
+  return NextResponse.json(data, { status, headers });
 }
 
 // Manejar preflight OPTIONS
-export async function OPTIONS(): Promise<NextResponse> {
-  return corsResponse({}, 200);
+export async function OPTIONS(req: Request): Promise<NextResponse> {
+  const origin = req.headers.get("origin") ?? "";
+  const allowedOrigin = allowedOrigins.includes(origin)
+    ? origin
+    : allowedOrigins[0];
+
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+  };
+
+  return new NextResponse(null, { status: 200, headers });
 }
 
 // =======================================
@@ -55,7 +82,11 @@ export async function POST(req: Request): Promise<NextResponse> {
     const { amount, referenceId, cartItems = [] } = body;
 
     if (!amount || !referenceId) {
-      return corsResponse({ error: "Faltan parámetros obligatorios." }, 400);
+      return corsResponse(
+        req,
+        { error: "Faltan parámetros obligatorios." },
+        400
+      );
     }
 
     console.log("💰 Monto:", amount);
@@ -119,6 +150,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     if (!token) {
       return corsResponse(
+        req,
         { error: "No se recibió token válido de Authorize.Net" },
         400
       );
@@ -137,7 +169,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     const user = users?.[0];
     if (!user) {
-      return corsResponse({ error: "Usuario no encontrado." }, 400);
+      return corsResponse(req, { error: "Usuario no encontrado." }, 400);
     }
 
     // ==============================
@@ -206,7 +238,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     console.log("✅ Transacción completada correctamente.");
     console.log("\x1b[36m====================\x1b[0m");
 
-    return corsResponse({
+    return corsResponse(req, {
       success: true,
       token,
       checkoutUrl: paymentEndpoint,
@@ -215,6 +247,7 @@ export async function POST(req: Request): Promise<NextResponse> {
   } catch (error) {
     console.error("💥 Error general en create-transaction:", error);
     return corsResponse(
+      req,
       {
         error: "Error general creando transacción",
         details: error instanceof Error ? error.message : String(error),
