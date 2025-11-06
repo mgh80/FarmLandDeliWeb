@@ -39,14 +39,11 @@ export async function GET(req: Request) {
     }
 
     const transactionId = transId || referenceId;
-    console.log("🔍 Verificando pago con ID:", transactionId);
 
     // ==========================================================
     // 🧪 MODO LOCAL DE PRUEBA (sin Authorize.Net)
     // ==========================================================
     if (referenceId === "LOCALTEST") {
-      console.log("🧪 Simulación local de pago exitoso");
-
       const pointsEarned = 5;
       const orderNumber = "ORD-" + Date.now();
       const amount = 13.76;
@@ -94,7 +91,6 @@ export async function GET(req: Request) {
       redirectUrl.searchParams.set("pointsEarned", pointsEarned.toString());
       redirectUrl.searchParams.set("status", "paid");
 
-      console.log("🔁 Redirigiendo a:", redirectUrl.toString());
       return NextResponse.redirect(redirectUrl.toString(), 303);
     }
 
@@ -147,7 +143,6 @@ export async function GET(req: Request) {
 
     const status = tx.transactionStatus?.toLowerCase() || "unknown";
     const amount = parseFloat(tx.authAmount || "0");
-    console.log("📋 Estado:", status, "| 💰 Monto:", amount);
 
     // ==========================================================
     // ✅ Si el pago fue exitoso
@@ -196,8 +191,6 @@ export async function GET(req: Request) {
       if (pointsError)
         console.error("⚠️ Error actualizando puntos:", pointsError);
 
-      console.log("✅ Orden creada y puntos actualizados correctamente");
-
       // ==========================================================
       // 🚀 Redirigir al frontend
       // ==========================================================
@@ -213,7 +206,6 @@ export async function GET(req: Request) {
       redirectUrl.searchParams.set("pointsEarned", pointsEarned.toString());
       redirectUrl.searchParams.set("status", "paid");
 
-      console.log("🔁 Redirigiendo a:", redirectUrl.toString());
       return NextResponse.redirect(redirectUrl.toString(), 303);
     }
 
