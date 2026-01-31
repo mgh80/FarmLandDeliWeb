@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Swal from "sweetalert2";
-import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/solid";
+import { EyeIcon, EyeSlashIcon, TrashIcon } from "@heroicons/react/24/solid";
 
 type UserWithPermissions = {
   id: string;
@@ -100,6 +100,78 @@ export default function Page() {
     }
   };
 
+  const handleDeleteUser = async (userId: string, userName: string, userEmail: string) => {
+    // Confirmación con SweetAlert2
+    const result = await Swal.fire({
+      title: "Are you sure?",
+      html: `
+        <p>You are about to delete:</p>
+        <p><strong>${userName}</strong></p>
+        <p class="text-gray-600">${userEmail}</p>
+        <p class="text-red-600 mt-4">This action cannot be undone.</p>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, delete user",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    try {
+      // 1. Primero eliminar permisos (igual que como ya funciona)
+      const { error: permissionsError } = await supabase
+        .from("UserPermissions")
+        .delete()
+        .eq("user_id", userId);
+
+      if (permissionsError) {
+        console.error("Error deleting permissions:", permissionsError);
+      }
+
+      // 2. Luego eliminar usuario directamente (igual que como creas usuarios)
+      const { error: deleteError } = await supabase
+        .from("Users")
+        .delete()
+        .eq("id", userId);
+
+      if (deleteError) {
+        console.error("Error deleting user:", deleteError);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: deleteError.message || "Failed to delete user",
+          confirmButtonColor: "#dc2626",
+        });
+        return;
+      }
+
+      // 3. Mostrar éxito
+      Swal.fire({
+        icon: "success",
+        title: "User Deleted",
+        text: `${userName} has been successfully deleted.`,
+        confirmButtonColor: "#3085d6",
+      });
+
+      // 4. Refrescar lista
+      fetchUsers();
+
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.message || "An error occurred while deleting the user.",
+        confirmButtonColor: "#dc2626",
+      });
+    }
+  };
+
   const togglePermission = async (
     userId: string,
     permission: string,
@@ -119,7 +191,7 @@ export default function Page() {
         Swal.fire({
           icon: "info",
           title: "Permission Removed",
-          text: `The permission \"${permission}\" has been removed.`,
+          text: `The permission "${permission}" has been removed.`,
           confirmButtonColor: "#3085d6",
         });
       }
@@ -135,7 +207,7 @@ export default function Page() {
         Swal.fire({
           icon: "success",
           title: "Permission Granted",
-          text: `The permission \"${permission}\" has been assigned.`,
+          text: `The permission "${permission}" has been assigned.`,
           confirmButtonColor: "#3085d6",
         });
       }
@@ -171,6 +243,9 @@ export default function Page() {
               </th>
               <th className="px-6 py-3 text-sm font-semibold uppercase tracking-wider border-b border-orange-300 text-left">
                 Permissions
+              </th>
+              <th className="px-6 py-3 text-sm font-semibold uppercase tracking-wider border-b border-orange-300 text-center">
+                Actions
               </th>
             </tr>
           </thead>
@@ -211,6 +286,16 @@ export default function Page() {
                       );
                     })}
                   </div>
+                </td>
+                <td className="px-6 py-4 border-b border-gray-200 text-center">
+                  <button
+                    onClick={() => handleDeleteUser(user.id, user.name, user.email)}
+                    className="inline-flex items-center justify-center px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors shadow-sm"
+                    title="Delete user"
+                  >
+                    <TrashIcon className="h-4 w-4 mr-1" />
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
