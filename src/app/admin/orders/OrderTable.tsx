@@ -10,7 +10,7 @@ type GroupedOrder = {
   total: number;
   date: string;
   user_name: string;
-  statusid: number;
+  statusid: number | null;
 };
 
 type OrderDetail = {
@@ -59,16 +59,22 @@ export default function OrderTable() {
       setDetails(data);
     }
 
+    // Obtener el statusid de CUALQUIER registro con ese ordernumber
     const { data: orderStatus, error: statusError } = await supabase
       .from("Orders")
       .select("statusid, orderstatus")
       .eq("ordernumber", ordernumber)
+      .limit(1)
       .single();
 
     if (!statusError && orderStatus) {
-      setSelectedStatusId(orderStatus.statusid);
+      const currentStatus = orderStatus.statusid ?? 1; // Si es NULL, usar 1
+      console.log('Status obtenido:', currentStatus);
+      setSelectedStatusId(currentStatus);
       setOrderReady(!!orderStatus.orderstatus);
     } else {
+      console.log('No se pudo obtener status, usando default 1');
+      setSelectedStatusId(1);
       setOrderReady(false);
     }
 
@@ -91,6 +97,28 @@ export default function OrderTable() {
     fetchGroupedOrders();
   }, []);
 
+  // DETECTAR SI VIENE UN NÚMERO DE ORDEN EN LA URL Y ABRIRLO AUTOMÁTICAMENTE
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderNumber = urlParams.get('orderNumber');
+      
+      if (orderNumber && orders.length > 0 && !selectedOrder) {
+        const orderExists = orders.find(o => o.ordernumber === orderNumber);
+        if (orderExists) {
+          console.log('Opening order:', orderNumber);
+          setSelectedOrder(orderNumber);
+          fetchDetails(orderNumber);
+          fetchIngredients(orderNumber);
+          // Limpiar URL después de un pequeño delay
+          setTimeout(() => {
+            window.history.replaceState({}, '', '/admin/orders');
+          }, 500);
+        }
+      }
+    }
+  }, [orders, selectedOrder]);
+
   const filteredOrders = orders.filter(
     (o) =>
       o.ordernumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -102,7 +130,8 @@ export default function OrderTable() {
 
   const calculateTax = () => calculateTotal() * 0.06;
 
-  const getStatusText = (statusid: number) => {
+  const getStatusText = (statusid: number | null) => {
+    // 0 o 1 o NULL = Pending, 2 = Delivered
     return statusid === 2 ? "Delivered" : "Pending";
   };
 
@@ -435,7 +464,8 @@ export default function OrderTable() {
                     🖨️ Print
                   </button>
 
-                  {selectedStatusId === 1 && !orderReady && (
+                  {/* Mostrar botón Order Ready solo si statusid es 0, 1 o NULL (Pending) y NO está marcado como ready */}
+                  {(selectedStatusId === 0 || selectedStatusId === 1 || selectedStatusId === null) && !orderReady && (
                     <button
                       onClick={handleMarkAsReady}
                       className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
@@ -444,18 +474,19 @@ export default function OrderTable() {
                     </button>
                   )}
 
+                  {/* Botón Deliver - Solo habilitado si statusid es 0, 1 o NULL (Pending) */}
                   <button
                     onClick={
-                      selectedStatusId === 1 ? handleMarkAsDelivered : undefined
+                      (selectedStatusId === 0 || selectedStatusId === 1 || selectedStatusId === null) ? handleMarkAsDelivered : undefined
                     }
                     className={`px-4 py-2 rounded-md ${
-                      selectedStatusId === 1
+                      (selectedStatusId === 0 || selectedStatusId === 1 || selectedStatusId === null)
                         ? "bg-green-600 text-white hover:bg-green-700"
                         : "bg-gray-300 text-gray-700 cursor-default"
                     }`}
-                    disabled={selectedStatusId !== 1}
+                    disabled={selectedStatusId === 2}
                   >
-                    {selectedStatusId === 1 ? "Deliver" : "Delivered"}
+                    {selectedStatusId === 2 ? "Delivered" : "Deliver"}
                   </button>
                 </div>
 
