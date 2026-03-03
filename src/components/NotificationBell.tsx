@@ -17,24 +17,24 @@ export default function NotificationBell() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const router = useRouter();
 
-  // Crear y preparar el audio al montar el componente
+  // Crear y preparar el audio local al montar el componente
   useEffect(() => {
-    // Crear elemento de audio
-    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    // 1. Apuntar al archivo en /public/notification.mp3
+    audioRef.current = new Audio('/notification.mp3');
     audioRef.current.volume = 0.8;
     audioRef.current.preload = 'auto';
     
     // Pre-cargar el audio
     audioRef.current.load();
     
-    // Intentar reproducir en silencio para "desbloquear" el audio
+    // Función para "desbloquear" el audio en navegadores (Chrome/Safari)
     const unlockAudio = () => {
       if (audioRef.current) {
         audioRef.current.play().then(() => {
           audioRef.current!.pause();
           audioRef.current!.currentTime = 0;
         }).catch(() => {
-          // Silenciosamente fallar
+          // Fallo silencioso si el usuario aún no interactuó lo suficiente
         });
       }
       document.removeEventListener('click', unlockAudio);
@@ -73,7 +73,7 @@ export default function NotificationBell() {
             });
           }
 
-          // REPRODUCIR SONIDO MODERNO
+          // REPRODUCIR SONIDO LOCAL
           playNotificationSound();
         }
       )
@@ -84,34 +84,22 @@ export default function NotificationBell() {
     };
   }, []);
 
-  // Función para reproducir sonido de notificación
   const playNotificationSound = () => {
     if (audioRef.current) {
-      // Resetear al inicio por si estaba reproduciéndose
       audioRef.current.currentTime = 0;
-      
-      // Intentar reproducir
       const playPromise = audioRef.current.play();
       
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           console.log('Audio play prevented:', error);
-          // Intentar con un nuevo audio como fallback
-          try {
-            const fallbackAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-            fallbackAudio.volume = 0.8;
-            fallbackAudio.play().catch(() => {
-              console.log('Fallback audio also failed');
-            });
-          } catch (e) {
-            console.log('All audio attempts failed');
-          }
+          // Fallback rápido: re-intentar cargar si hubo un error de red con el archivo
+          audioRef.current?.load();
+          audioRef.current?.play().catch(() => console.log("Final audio fail"));
         });
       }
     }
   };
 
-  // Solicitar permiso para notificaciones del navegador
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === "default") {
@@ -121,10 +109,9 @@ export default function NotificationBell() {
   }, []);
 
   const handleNotificationClick = (order: Order) => {
-    // Eliminar esta notificación específica de la lista
     setNewOrders((prev) => prev.filter(o => o.id !== order.id));
     setShowDropdown(false);
-    // Forzar navegación y recarga
+    // Navegación forzada para activar el modal en OrderTable
     window.location.href = `/admin/orders?orderNumber=${order.ordernumber}`;
   };
 
@@ -145,7 +132,6 @@ export default function NotificationBell() {
 
   return (
     <div className="relative">
-      {/* Bell Icon - ROJA Y GRANDE */}
       <button
         onClick={() => setShowDropdown(!showDropdown)}
         className="relative p-2 text-red-600 hover:bg-red-50 rounded-full transition"
@@ -158,7 +144,6 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown */}
       {showDropdown && (
         <>
           <div

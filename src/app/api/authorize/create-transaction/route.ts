@@ -1,3 +1,5 @@
+//create-transaction/route.ts
+
 import { NextResponse } from "next/server";
 import xml2js from "xml2js";
 import { createClient } from "@supabase/supabase-js";
@@ -11,15 +13,12 @@ const supabase = createClient(
 );
 
 // =======================================
-// 🔹 CONFIGURACIÓN CORS (dinámica, correcta para Vercel)
-// =======================================
-// =======================================
-// 🔹 CONFIGURACIÓN CORS (dinámica, corregida para TS)
+// 🔹 CONFIGURACIÓN CORS
 // =======================================
 const allowedOrigins = [
   "https://farm-land-deli-app.vercel.app",
   "https://farm-land-deli-web.vercel.app",
-  "http://localhost:3000", // útil para desarrollo local
+  "http://localhost:3000",
 ];
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
@@ -27,7 +26,6 @@ interface JsonObject {
   [key: string]: JsonValue;
 }
 
-// Helper para respuesta CORS dinámica
 function corsResponse(
   req: Request,
   data: JsonObject,
@@ -36,7 +34,7 @@ function corsResponse(
   const origin = req.headers.get("origin") ?? "";
   const allowedOrigin = allowedOrigins.includes(origin)
     ? origin
-    : allowedOrigins[0]; // fallback seguro
+    : allowedOrigins[0];
 
   const headers: Record<string, string> = {
     "Access-Control-Allow-Origin": allowedOrigin,
@@ -48,7 +46,6 @@ function corsResponse(
   return NextResponse.json(data, { status, headers });
 }
 
-// Manejar preflight OPTIONS
 export async function OPTIONS(req: Request): Promise<NextResponse> {
   const origin = req.headers.get("origin") ?? "";
   const allowedOrigin = allowedOrigins.includes(origin)
@@ -73,15 +70,22 @@ export async function POST(req: Request): Promise<NextResponse> {
     const body: {
       amount: number;
       referenceId: string;
+      userId: string;
       cartItems?: { id: number; quantity: number }[];
     } = await req.json();
 
-    const { amount, referenceId, cartItems = [] } = body;
+    const { amount, referenceId, userId, cartItems = [] } = body;
 
-    if (!amount || !referenceId) {
+    console.log(`📦 create-transaction:`, {
+      referenceId,
+      userId,
+      amount,
+    });
+
+    if (!amount || !referenceId || !userId) {
       return corsResponse(
         req,
-        { error: "Faltan parámetros obligatorios." },
+        { error: "Faltan parámetros obligatorios (amount, referenceId, userId)." },
         400
       );
     }
@@ -97,6 +101,10 @@ export async function POST(req: Request): Promise<NextResponse> {
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ||
       "https://farm-land-deli-web.vercel.app";
+
+    // 🔹 IMPORTANTE: Pasar referenceId en la URL de retorno
+    const returnUrl = `${baseUrl}/order-confirmation?referenceId=${referenceId}&orderNumber=${referenceId}`;
+    console.log(`🔗 Return URL: ${returnUrl}`);
 
     const payload = {
       getHostedPaymentPageRequest: {
@@ -115,7 +123,7 @@ export async function POST(req: Request): Promise<NextResponse> {
               settingName: "hostedPaymentReturnOptions",
               settingValue: JSON.stringify({
                 showReceipt: false,
-                url: `${baseUrl}/order-confirmation?referenceId=${referenceId}`,
+                url: returnUrl,
                 urlText: "Continue",
               }),
             },
@@ -132,9 +140,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       },
     };
 
-    const xmlRequest = new xml2js.Builder({ headless: true }).buildObject(
-      payload
-    );
+    const xmlRequest = new xml2js.Builder({ headless: true }).buildObject(payload);
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -157,22 +163,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       );
     }
 
-    // ==============================
-    // 🔹 Obtener usuario actual
-    // ==============================
-    const { data: users } = await supabase
-      .from("Users")
-      .select("id")
-      .order("dateCreated", { ascending: false })
-      .limit(1);
-
-    const user = users?.[0];
-    if (!user) {
-      return corsResponse(req, { error: "Usuario no encontrado." }, 400);
-    }
+    console.log(`✅ Token generado: ${token.substring(0, 20)}...`);
 
     // ==============================
-    // 🔹 Guardar producto y cantidad
+    // 🔹 Preparar productos
     // ==============================
     let productid: number | null = null;
     let quantity: number | null = null;
@@ -183,16 +177,16 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     // ==============================
-    // 🔹 Crear orden principal
+    // 🔹 Crear orden principal en Supabase
     // ==============================
     const { data: order, error: orderError } = await supabase
       .from("Orders")
       .insert({
         ordernumber: referenceId,
-        userid: user.id,
+        userid: userId, // ✅ El userId correcto
         price: parseFloat(amount.toFixed(2)),
         date: new Date().toISOString(),
-        statusid: 0,
+        statusid: 0, // ✅ Pendiente (no pagado aún)
         paymentreference: referenceId,
         orderstatus: false,
         productid,
@@ -203,6 +197,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     if (orderError) {
       console.error("⚠️ Error al crear orden:", orderError);
+    } else {
+      console.log(`✅ Orden creada: ${referenceId} para usuario ${userId}`);
     }
 
     // ==============================

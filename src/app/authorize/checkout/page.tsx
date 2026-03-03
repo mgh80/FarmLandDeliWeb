@@ -1,3 +1,5 @@
+//page.tsx dentro de checkout
+
 "use client";
 
 import React, { useEffect } from "react";
