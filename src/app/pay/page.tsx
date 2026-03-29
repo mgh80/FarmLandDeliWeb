@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 declare global {
   interface Window {
@@ -15,7 +16,7 @@ interface AcceptResponse {
   messages: { resultCode: string; message: { text: string }[] };
 }
 
-export default function PayPage() {
+function PayForm() {
   const searchParams = useSearchParams();
   const amount = searchParams.get("amount") || "0.00";
   const referenceId = searchParams.get("referenceId") || "";
@@ -71,7 +72,6 @@ export default function PayPage() {
 
         const opaqueData = response.opaqueData;
 
-        // Enviar al backend para procesar
         const res = await fetch("/api/authorize/charge-card", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -88,17 +88,16 @@ export default function PayPage() {
         if (result.success) {
           setSuccess(true);
           setMessage(`✅ Payment successful! Order: ${result.orderNumber}`);
-          // Notificar a la app via postMessage
           const win = window as any;
-if (win.ReactNativeWebView) {
-  win.ReactNativeWebView.postMessage(
-    JSON.stringify({
-      type: "PAYMENT_SUCCESS",
-      orderNumber: result.orderNumber,
-      points: result.pointsEarned || 0,
-    })
-  );
-}
+          if (win.ReactNativeWebView) {
+            win.ReactNativeWebView.postMessage(
+              JSON.stringify({
+                type: "PAYMENT_SUCCESS",
+                orderNumber: result.orderNumber,
+                points: result.pointsEarned || 0,
+              })
+            );
+          }
         } else {
           setMessage(`❌ ${result.error || "Payment failed"}`);
         }
@@ -204,7 +203,8 @@ if (win.ReactNativeWebView) {
                 width: "100%", padding: "14px",
                 backgroundColor: loading ? "#d1d5db" : "#FFA500",
                 color: "white", border: "none", borderRadius: 10,
-                fontSize: 16, fontWeight: "bold", cursor: loading ? "not-allowed" : "pointer"
+                fontSize: 16, fontWeight: "bold",
+                cursor: loading ? "not-allowed" : "pointer"
               }}
             >
               {loading ? "Processing..." : `Pay $${amount}`}
@@ -233,3 +233,18 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8, fontSize: 15, outline: "none",
   boxSizing: "border-box"
 };
+
+export default function PayPage() {
+  return (
+    <Suspense fallback={
+      <div style={{
+        display: "flex", height: "100vh",
+        alignItems: "center", justifyContent: "center"
+      }}>
+        <p>Loading...</p>
+      </div>
+    }>
+      <PayForm />
+    </Suspense>
+  );
+}
