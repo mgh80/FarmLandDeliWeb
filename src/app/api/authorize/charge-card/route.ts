@@ -48,7 +48,6 @@ export async function POST(req: Request) {
     const result = parsed?.createTransactionResponse?.transactionResponse;
     const messages = parsed?.createTransactionResponse?.messages;
 
-    // ✅ Si el pago falló no guardamos nada
     if (messages?.resultCode !== "Ok" || result?.responseCode !== "1") {
       return NextResponse.json({
         success: false,
@@ -57,13 +56,11 @@ export async function POST(req: Request) {
     }
 
     const transactionId = result?.transId;
-
-    // ✅ AJUSTE 3: 1 USD = 1 punto
     const pointsEarned = Math.floor(parseFloat(amount));
 
-    console.log(`✅ Pago exitoso: ${transactionId} — Puntos ganados: ${pointsEarned}`);
+    console.log(`✅ Pago exitoso: ${transactionId} — Puntos: ${pointsEarned}`);
 
-    // ✅ AJUSTE 2: guardar orden SOLO si el pago fue exitoso
+    // Guardar orden solo si pago exitoso
     const { data: order, error: orderError } = await supabase
       .from("Orders")
       .insert({
@@ -104,7 +101,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // ✅ AJUSTE 3: sumar puntos al usuario
+    // Sumar puntos al usuario
     const { data: userData } = await supabase
       .from("Users")
       .select("points")
@@ -119,7 +116,7 @@ export async function POST(req: Request) {
       .update({ points: newPoints })
       .eq("id", userId);
 
-    console.log(`✅ Puntos actualizados: ${currentPoints} + ${pointsEarned} = ${newPoints}`);
+    console.log(`✅ Puntos: ${currentPoints} + ${pointsEarned} = ${newPoints}`);
 
     return NextResponse.json({
       success: true,

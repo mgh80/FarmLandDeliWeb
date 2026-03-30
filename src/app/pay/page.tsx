@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 declare global {
@@ -30,6 +30,10 @@ function PayForm() {
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const monthRef = useRef<HTMLInputElement>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
+  const cvvRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://jstest.authorize.net/v1/Accept.js";
@@ -55,7 +59,7 @@ function PayForm() {
     const cardData = {
       cardNumber: cardNumber.replace(/\s/g, ""),
       month: expMonth,
-      year: expYear,
+      year: expYear.length === 2 ? `20${expYear}` : expYear,
       cardCode: cvv,
       fullName: cardName,
     };
@@ -87,7 +91,7 @@ function PayForm() {
 
         if (result.success) {
           setSuccess(true);
-          setMessage(`✅ Payment successful!`);
+          setMessage("✅ Payment successful!");
           const win = window as any;
           if (win.ReactNativeWebView) {
             win.ReactNativeWebView.postMessage(
@@ -143,8 +147,11 @@ function PayForm() {
                 style={inputStyle}
                 placeholder="1234 5678 9012 3456"
                 value={cardNumber}
-                onChange={(e) => setCardNumber(e.target.value)}
-                maxLength={19}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  setCardNumber(val);
+                }}
+                maxLength={16}
                 inputMode="numeric"
               />
             </div>
@@ -153,10 +160,15 @@ function PayForm() {
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Month</label>
                 <input
+                  ref={monthRef}
                   style={inputStyle}
                   placeholder="MM"
                   value={expMonth}
-                  onChange={(e) => setExpMonth(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setExpMonth(val);
+                    if (val.length === 2) yearRef.current?.focus();
+                  }}
                   maxLength={2}
                   inputMode="numeric"
                 />
@@ -164,21 +176,30 @@ function PayForm() {
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>Year</label>
                 <input
+                  ref={yearRef}
                   style={inputStyle}
-                  placeholder="YYYY"
+                  placeholder="YY"
                   value={expYear}
-                  onChange={(e) => setExpYear(e.target.value)}
-                  maxLength={4}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setExpYear(val);
+                    if (val.length === 2) cvvRef.current?.focus();
+                  }}
+                  maxLength={2}
                   inputMode="numeric"
                 />
               </div>
               <div style={{ flex: 1 }}>
                 <label style={labelStyle}>CVV</label>
                 <input
+                  ref={cvvRef}
                   style={inputStyle}
                   placeholder="123"
                   value={cvv}
-                  onChange={(e) => setCvv(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setCvv(val);
+                  }}
                   maxLength={4}
                   inputMode="numeric"
                 />
@@ -228,7 +249,6 @@ const labelStyle: React.CSSProperties = {
   color: "#374151", marginBottom: 6
 };
 
-// ✅ AJUSTE 1: color negro en los inputs
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", border: "1px solid #d1d5db",
   borderRadius: 8, fontSize: 15, outline: "none",
