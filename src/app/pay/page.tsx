@@ -1,7 +1,6 @@
 "use client";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
 
 declare global {
   interface Window {
@@ -80,6 +79,7 @@ function PayForm() {
             amount,
             referenceId,
             userId,
+            cartItems: [],
           }),
         });
 
@@ -87,7 +87,7 @@ function PayForm() {
 
         if (result.success) {
           setSuccess(true);
-          setMessage(`✅ Payment successful! Order: ${result.orderNumber}`);
+          setMessage(`✅ Payment successful!`);
           const win = window as any;
           if (win.ReactNativeWebView) {
             win.ReactNativeWebView.postMessage(
@@ -99,7 +99,7 @@ function PayForm() {
             );
           }
         } else {
-          setMessage(`❌ ${result.error || "Payment failed"}`);
+          setMessage(`❌ ${result.error || "Payment failed. Please try again."}`);
         }
 
         setLoading(false);
@@ -214,7 +214,7 @@ function PayForm() {
           <div style={{ textAlign: "center" }}>
             <p style={{ fontSize: 48 }}>🎉</p>
             <p style={{ color: "#16a34a", fontWeight: "bold", fontSize: 18 }}>
-              {message}
+              Payment successful!
             </p>
           </div>
         )}
@@ -228,10 +228,11 @@ const labelStyle: React.CSSProperties = {
   color: "#374151", marginBottom: 6
 };
 
+// ✅ AJUSTE 1: color negro en los inputs
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 12px", border: "1px solid #d1d5db",
   borderRadius: 8, fontSize: 15, outline: "none",
-  boxSizing: "border-box"
+  boxSizing: "border-box", color: "#111827",
 };
 
 export default function PayPage() {

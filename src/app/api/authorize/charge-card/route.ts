@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { opaqueData, amount, referenceId, userId } = await req.json();
+    const { opaqueData, amount, referenceId, userId, cartItems = [] } = await req.json();
 
     const endpoint = process.env.AUTHORIZE_ENV === "sandbox"
       ? "https://apitest.authorize.net/xml/v1/request.api"
@@ -48,25 +48,78 @@ export async function POST(req: Request) {
     const result = parsed?.createTransactionResponse?.transactionResponse;
     const messages = parsed?.createTransactionResponse?.messages;
 
-    if (messages?.resultCode !== "Ok") {
+    // ✅ Si el pago falló no guardamos nada
+    if (messages?.resultCode !== "Ok" || result?.responseCode !== "1") {
       return NextResponse.json({
         success: false,
-        error: result?.errors?.error?.errorText || "Transaction failed"
+        error: result?.errors?.error?.errorText || "Transaction declined"
       });
     }
 
     const transactionId = result?.transId;
+
+    // ✅ AJUSTE 3: 1 USD = 1 punto
     const pointsEarned = Math.floor(parseFloat(amount));
 
-    // Actualizar orden en Supabase
-    await supabase
+    console.log(`✅ Pago exitoso: ${transactionId} — Puntos ganados: ${pointsEarned}`);
+
+    // ✅ AJUSTE 2: guardar orden SOLO si el pago fue exitoso
+    const { data: order, error: orderError } = await supabase
       .from("Orders")
-      .update({
-        orderstatus: false,
+      .insert({
+        ordernumber: referenceId,
+        userid: userId,
+        price: parseFloat(parseFloat(amount).toFixed(2)),
+        date: new Date().toISOString(),
         statusid: 1,
         paymentreference: transactionId,
+        orderstatus: false,
+        cancelstatus: false,
       })
-      .eq("ordernumber", referenceId);
+      .select("id")
+      .single();
+
+    if (orderError) {
+      console.error("⚠️ Error al crear orden:", orderError);
+    } else {
+      console.log(`✅ Orden creada: ${referenceId}`);
+    }
+
+    // Guardar productos asociados
+    if (order && Array.isArray(cartItems) && cartItems.length > 0) {
+      const validItems = cartItems
+        .filter((item: any) => item.id && item.quantity > 0)
+        .map((item: any) => ({
+          order_id: order.id,
+          product_id: item.id,
+          quantity: item.quantity,
+        }));
+
+      if (validItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("OrderIngredients")
+          .insert(validItems);
+        if (itemsError)
+          console.error("⚠️ Error al guardar productos:", itemsError);
+      }
+    }
+
+    // ✅ AJUSTE 3: sumar puntos al usuario
+    const { data: userData } = await supabase
+      .from("Users")
+      .select("points")
+      .eq("id", userId)
+      .single();
+
+    const currentPoints = userData?.points || 0;
+    const newPoints = currentPoints + pointsEarned;
+
+    await supabase
+      .from("Users")
+      .update({ points: newPoints })
+      .eq("id", userId);
+
+    console.log(`✅ Puntos actualizados: ${currentPoints} + ${pointsEarned} = ${newPoints}`);
 
     return NextResponse.json({
       success: true,
@@ -76,6 +129,10 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
-    return NextResponse.json({ success: false, error: String(error) });
+    console.error("💥 Error en charge-card:", error);
+    return NextResponse.json({
+      success: false,
+      error: String(error)
+    });
   }
 }
